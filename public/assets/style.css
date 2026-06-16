@@ -155,6 +155,12 @@ button.ghost { background: transparent; color: var(--muted); border: 1px solid v
 .import-result.err { color: var(--warn); }
 .import-result ul { margin: 6px 0 0; padding-left: 18px; color: var(--muted); }
 
+.danger-zone { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
+.danger-zone h4 { margin: 0 0 10px; font-size: 13px; color: var(--warn); text-transform: uppercase; letter-spacing: 0.5px; }
+.danger-zone .row { align-items: flex-end; }
+button.danger { background: transparent; color: #ff6b6b; border: 1px solid #ff6b6b; white-space: nowrap; }
+button.danger:hover { background: #ff6b6b; color: #1a0606; }
+
 .signout {
     align-self: center; color: var(--muted); text-decoration: none; font-size: 13px;
     border: 1px solid var(--border); border-radius: 6px; padding: 6px 12px;

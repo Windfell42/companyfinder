@@ -97,6 +97,21 @@ $exclude = htmlspecialchars(implode(', ', $config['exclude_keywords']));
                     <button type="submit" class="primary" id="i-submit">Import</button>
                     <div id="import-result" class="import-result"></div>
                 </form>
+
+                <div class="danger-zone">
+                    <h4>Clear database</h4>
+                    <div class="row">
+                        <label>Scope
+                            <select id="clear-scope">
+                                <option value="all">Everything</option>
+                                <option value="live">Scraped/imported only (keep samples)</option>
+                                <option value="samples">Sample data only</option>
+                            </select>
+                        </label>
+                        <button type="button" id="clear-btn" class="danger">Clear listings</button>
+                    </div>
+                    <div id="clear-result" class="import-result"></div>
+                </div>
             </div>
         </details>
 

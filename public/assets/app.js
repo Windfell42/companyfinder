@@ -194,6 +194,40 @@ $('import-form').addEventListener('submit', async (e) => {
     }
 });
 
+// --- clear database --------------------------------------------------------
+
+$('clear-btn').addEventListener('click', async () => {
+    const scope = $('clear-scope').value;
+    const labels = { all: 'ALL listings', live: 'all scraped/imported listings', samples: 'sample listings' };
+    if (!confirm(`Delete ${labels[scope]}? This cannot be undone.`)) {
+        return;
+    }
+    const out = $('clear-result');
+    const btn = $('clear-btn');
+    btn.disabled = true;
+    out.className = 'import-result';
+    out.textContent = 'Clearing…';
+    try {
+        const body = new URLSearchParams({ action: 'clear', scope });
+        const res = await apiFetch('admin.php', { method: 'POST', body });
+        const data = await res.json();
+        if (!res.ok || data.error) {
+            out.className = 'import-result err';
+            out.textContent = data.error || 'Clear failed.';
+            return;
+        }
+        out.className = 'import-result ok';
+        out.textContent = `Removed ${data.removed} listing(s).`;
+        await loadMeta();
+        await loadResults();
+    } catch (err) {
+        out.className = 'import-result err';
+        out.textContent = 'Clear failed: ' + err.message;
+    } finally {
+        btn.disabled = false;
+    }
+});
+
 (async function init() {
     syncWeightLabels();
     await loadMeta();

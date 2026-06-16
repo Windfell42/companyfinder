@@ -66,10 +66,26 @@ class Geo
         if ($location === null || $location === '') {
             return null;
         }
-        $needle = strtolower($location);
-        foreach (self::CITIES as $city => $coords) {
+        $city = self::cityIn($location);
+        return $city !== null ? self::CITIES[strtolower($city)] : null;
+    }
+
+    /**
+     * Return the canonical DFW city name mentioned in a free-text string, or
+     * null if none is recognised. Longer names are checked first so that, e.g.,
+     * "North Richland Hills" wins over a shorter overlapping match.
+     */
+    public static function cityIn(?string $text): ?string
+    {
+        if ($text === null || $text === '') {
+            return null;
+        }
+        $needle = strtolower($text);
+        $cities = array_keys(self::CITIES);
+        usort($cities, fn($a, $b) => strlen($b) <=> strlen($a));
+        foreach ($cities as $city) {
             if (str_contains($needle, $city)) {
-                return $coords;
+                return ucwords($city);
             }
         }
         return null;

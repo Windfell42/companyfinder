@@ -18,12 +18,15 @@ use CompanyFinder\Scraper;
 
 $config = require __DIR__ . '/../src/bootstrap.php';
 
-$opts = getopt('', ['source::', 'clear-samples']);
+$opts = getopt('', ['source::', 'clear-samples', 'clear-all']);
 
 $db   = new Database($config['db_path']);
 $repo = new ListingRepository($db->pdo(), $config['anchor']);
 
-if (isset($opts['clear-samples'])) {
+if (isset($opts['clear-all'])) {
+    $n = $repo->clearAll();
+    fwrite(STDOUT, "Removed $n rows (entire database cleared).\n");
+} elseif (isset($opts['clear-samples'])) {
     $n = $repo->clearSamples();
     fwrite(STDOUT, "Removed $n sample rows.\n");
 }

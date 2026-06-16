@@ -239,4 +239,17 @@ class ListingRepository
     {
         return (int) $this->pdo->exec('DELETE FROM listings WHERE is_sample = 1');
     }
+
+    public function clearLive(): int
+    {
+        return (int) $this->pdo->exec('DELETE FROM listings WHERE is_sample = 0');
+    }
+
+    /** Delete every listing. Returns the number of rows removed. */
+    public function clearAll(): int
+    {
+        $before = (int) $this->pdo->query('SELECT COUNT(*) c FROM listings')->fetch()['c'];
+        $this->pdo->exec('DELETE FROM listings');
+        return $before;
+    }
 }

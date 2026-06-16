@@ -70,7 +70,12 @@ page. For an internet-facing deployment, also serve over HTTPS.
 php bin/scrape.php                    # all sources
 php bin/scrape.php --source=bizquest  # one source
 php bin/scrape.php --clear-samples    # remove seeded sample rows first
+php bin/scrape.php --clear-all        # wipe the whole database first
 ```
+
+You can also clear the database from the dashboard: open the **Import listings
+from saved HTML** panel and use the **Clear database** controls (everything,
+imported-only, or sample-only).
 
 Live scraping needs outbound access to `bizbuysell.com` and `bizquest.com`.
 If that access is blocked, or the sites change their markup, the scraper logs

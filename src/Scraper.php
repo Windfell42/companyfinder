@@ -266,16 +266,39 @@ class Scraper
 
     private function extractPrice(mixed $offers): ?float
     {
-        if (is_numeric($offers)) {
-            return (float) $offers;
+        if (is_string($offers) || is_numeric($offers)) {
+            return $this->parseMoney($offers);
         }
         if (is_array($offers)) {
             $p = $offers['price'] ?? ($offers['lowPrice'] ?? ($offers[0]['price'] ?? null));
-            if (is_numeric($p)) {
-                return (float) $p;
-            }
+            return $this->parseMoney($p);
         }
         return null;
+    }
+
+    /**
+     * Parse a monetary value from numbers or human strings. Handles things
+     * like 1250000, "1250000", "$1,250,000", "$1.25M", "950K", "$1.2 million".
+     */
+    private function parseMoney(mixed $v): ?float
+    {
+        if (is_int($v) || is_float($v)) {
+            return $v > 0 ? (float) $v : null;
+        }
+        if (!is_string($v) || trim($v) === '') {
+            return null;
+        }
+        if (!preg_match('/([\d][\d,]*(?:\.\d+)?)\s*(million|mil|thousand|m|k)?/i', $v, $m)) {
+            return null;
+        }
+        $num = (float) str_replace(',', '', $m[1]);
+        $suffix = strtolower($m[2] ?? '');
+        if (in_array($suffix, ['m', 'mil', 'million'], true)) {
+            $num *= 1_000_000;
+        } elseif (in_array($suffix, ['k', 'thousand'], true)) {
+            $num *= 1_000;
+        }
+        return $num > 0 ? $num : null;
     }
 
     /**
@@ -320,8 +343,9 @@ class Scraper
         }
 
         $title = $node['headerName'] ?? ($node['name'] ?? ($node['title'] ?? null));
-        $price = $node['askingPrice'] ?? ($node['price'] ?? null);
-        if (is_string($title) && $title !== '' && (isset($node['askingPrice']) || isset($node['cashFlow']))) {
+        $hasPriceKey = array_key_exists('askingPrice', $node) || array_key_exists('price', $node)
+            || array_key_exists('cashFlow', $node);
+        if (is_string($title) && $title !== '' && $hasPriceKey) {
             $url = $node['listingUrl'] ?? ($node['url'] ?? ($node['detailUrl'] ?? ''));
             $listing = $this->normalizeListing([
                 'source'        => $source,
@@ -330,9 +354,9 @@ class Scraper
                 'description'   => (string) ($node['description'] ?? ($node['teaser'] ?? '')),
                 'business_type' => (string) ($node['industry'] ?? ($node['category'] ?? '')),
                 'location'      => (string) ($node['location'] ?? ($node['city'] ?? '')),
-                'price'         => is_numeric($price) ? (float) $price : null,
-                'cash_flow'     => is_numeric($node['cashFlow'] ?? null) ? (float) $node['cashFlow'] : null,
-                'gross_revenue' => is_numeric($node['grossRevenue'] ?? ($node['revenue'] ?? null)) ? (float) ($node['grossRevenue'] ?? $node['revenue']) : null,
+                'price'         => $this->parseMoney($node['askingPrice'] ?? ($node['price'] ?? null)),
+                'cash_flow'     => $this->parseMoney($node['cashFlow'] ?? ($node['cash_flow'] ?? null)),
+                'gross_revenue' => $this->parseMoney($node['grossRevenue'] ?? ($node['revenue'] ?? ($node['grossIncome'] ?? null))),
             ]);
             if ($listing) {
                 $out[] = $listing;
@@ -367,25 +391,97 @@ class Scraper
         }
 
         $out = [];
+        $seen = [];
         foreach ($nodes as $a) {
-            $title = trim($a->textContent);
+            $title = trim(preg_replace('/\s+/', ' ', $a->textContent));
             $href  = $a->getAttribute('href');
             if ($title === '' || strlen($title) < 6 || $href === '') {
                 continue;
             }
-            $out[] = $this->normalizeListing([
+
+            // A card usually has several links (image, title, "details"); key
+            // on the listing id so we only emit each card once, and prefer the
+            // longest anchor text as the title.
+            $id = $this->idFromUrl($this->absoluteUrl($href, $base));
+            if (isset($seen[$id]) && strlen($title) <= strlen($seen[$id]['title'])) {
+                continue;
+            }
+
+            // Climb to the nearest ancestor that contains pricing text so we
+            // can read the figures that sit alongside the link.
+            $cardText = $this->cardText($a);
+
+            $listing = $this->normalizeListing([
                 'source'        => $source,
                 'title'         => $title,
                 'url'           => $this->absoluteUrl($href, $base),
                 'description'   => '',
                 'business_type' => '',
-                'location'      => '',
-                'price'         => null,
-                'cash_flow'     => null,
-                'gross_revenue' => null,
+                'location'      => $this->extractLocationText($cardText),
+                'price'         => $this->extractLabeledMoney($cardText, ['asking price', 'price', 'asking']) ?? $this->largestMoney($cardText),
+                'cash_flow'     => $this->extractLabeledMoney($cardText, ['cash flow', 'sde', 'seller\'s discretionary', 'net profit', 'net income']),
+                'gross_revenue' => $this->extractLabeledMoney($cardText, ['gross revenue', 'gross income', 'gross sales', 'revenue', 'sales']),
             ]);
+            if ($listing) {
+                $seen[$id] = $listing;
+            }
         }
-        return array_values(array_filter($out));
+        return array_values($seen);
+    }
+
+    /**
+     * Text of the nearest ancestor of $node that looks like a listing card
+     * (contains a dollar figure), with whitespace collapsed. Falls back to the
+     * immediate parent so we always return something to scan.
+     */
+    private function cardText(\DOMNode $node): string
+    {
+        $best = $node->parentNode;
+        $cur = $node->parentNode;
+        for ($i = 0; $i < 6 && $cur !== null; $i++) {
+            $text = $cur->textContent ?? '';
+            if (str_contains($text, '$') && strlen($text) < 2000) {
+                $best = $cur;
+                break;
+            }
+            $cur = $cur->parentNode;
+        }
+        return trim(preg_replace('/\s+/', ' ', $best?->textContent ?? ''));
+    }
+
+    /**
+     * Find the first money figure that follows one of the given labels, e.g.
+     * "Cash Flow: $410,000". Labels are matched case-insensitively.
+     */
+    private function extractLabeledMoney(string $text, array $labels): ?float
+    {
+        foreach ($labels as $label) {
+            $re = '/' . preg_quote($label, '/') . '\s*[:\-]?\s*\$?\s*([\d][\d,]*(?:\.\d+)?\s*(?:million|mil|thousand|m|k)?)/i';
+            if (preg_match($re, $text, $m)) {
+                $val = $this->parseMoney($m[1]);
+                if ($val !== null) {
+                    return $val;
+                }
+            }
+        }
+        return null;
+    }
+
+    /** Largest dollar figure in a blob of text — a decent guess for asking price. */
+    private function largestMoney(string $text): ?float
+    {
+        if (!preg_match_all('/\$\s*([\d][\d,]*(?:\.\d+)?\s*(?:million|mil|thousand|m|k)?)/i', $text, $m)) {
+            return null;
+        }
+        $values = array_filter(array_map(fn($s) => $this->parseMoney($s), $m[1]));
+        return $values ? max($values) : null;
+    }
+
+    /** Pull a recognised DFW city out of free card text, as "City, TX". */
+    private function extractLocationText(string $text): string
+    {
+        $city = Geo::cityIn($text);
+        return $city !== null ? $city . ', TX' : '';
     }
 
     /**
