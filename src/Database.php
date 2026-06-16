@@ -55,6 +55,8 @@ class Database
                 last_seen       TEXT,
                 previous_price  REAL,
                 price_changed_at TEXT,
+                tags            TEXT,
+                is_starred      INTEGER NOT NULL DEFAULT 0,
                 UNIQUE(source, external_id)
             );
         SQL);
@@ -83,6 +85,8 @@ class Database
             'last_seen'        => 'TEXT',
             'previous_price'   => 'REAL',
             'price_changed_at' => 'TEXT',
+            'tags'             => 'TEXT',
+            'is_starred'       => 'INTEGER NOT NULL DEFAULT 0',
         ] as $col => $type) {
             $this->addColumnIfMissing('listings', $col, $type);
         }

@@ -194,17 +194,21 @@ class ListingRepository
         if (!empty($filters['changed_only'])) {
             $where[] = 'previous_price IS NOT NULL';
         }
+        // "Starred only": flagged as interesting.
+        if (!empty($filters['starred_only'])) {
+            $where[] = 'is_starred = 1';
+        }
 
         $i = 0;
         foreach ($this->terms($filters['contains'] ?? []) as $term) {
             $key = ':inc' . $i++;
-            $where[] = "(LOWER(title) LIKE $key OR LOWER(description) LIKE $key OR LOWER(business_type) LIKE $key OR LOWER(location) LIKE $key)";
+            $where[] = "(LOWER(title) LIKE $key OR LOWER(description) LIKE $key OR LOWER(business_type) LIKE $key OR LOWER(location) LIKE $key OR LOWER(COALESCE(tags,'')) LIKE $key)";
             $params[$key] = '%' . strtolower($term) . '%';
         }
         $j = 0;
         foreach ($this->terms($filters['not_contains'] ?? []) as $term) {
             $key = ':exc' . $j++;
-            $where[] = "(LOWER(title) NOT LIKE $key AND LOWER(description) NOT LIKE $key AND LOWER(business_type) NOT LIKE $key AND LOWER(location) NOT LIKE $key)";
+            $where[] = "(LOWER(title) NOT LIKE $key AND LOWER(description) NOT LIKE $key AND LOWER(business_type) NOT LIKE $key AND LOWER(location) NOT LIKE $key AND LOWER(COALESCE(tags,'')) NOT LIKE $key)";
             $params[$key] = '%' . strtolower($term) . '%';
         }
 
@@ -316,6 +320,50 @@ class ListingRepository
         return $stmt->fetchAll();
     }
 
+    /**
+     * Update a listing's user-supplied metadata (interesting flag and/or free
+     * text tags). Only the fields passed (non-null) are changed. Returns true
+     * if a matching listing was found.
+     */
+    public function setUserMeta(string $source, string $externalId, ?bool $starred, ?string $tags): bool
+    {
+        $set = [];
+        $params = [':source' => $source, ':external_id' => $externalId];
+        if ($starred !== null) {
+            $set[] = 'is_starred = :starred';
+            $params[':starred'] = $starred ? 1 : 0;
+        }
+        if ($tags !== null) {
+            $clean = trim($tags);
+            $set[] = 'tags = :tags';
+            $params[':tags'] = $clean === '' ? null : $clean;
+        }
+        if (!$set) {
+            return false;
+        }
+        $stmt = $this->pdo->prepare('UPDATE listings SET ' . implode(', ', $set) . ' WHERE source = :source AND external_id = :external_id');
+        $stmt->execute($params);
+        return $stmt->rowCount() > 0;
+    }
+
+    /** @return array<int,string> distinct tags currently in use */
+    public function tags(): array
+    {
+        $rows = $this->pdo->query("SELECT tags FROM listings WHERE tags IS NOT NULL AND tags <> ''")->fetchAll();
+        $all = [];
+        foreach ($rows as $r) {
+            foreach (explode(',', $r['tags']) as $t) {
+                $t = trim($t);
+                if ($t !== '') {
+                    $all[$t] = true;
+                }
+            }
+        }
+        $list = array_keys($all);
+        sort($list);
+        return $list;
+    }
+
     /** @param string|null $newCutoff ISO timestamp; rows first seen on/after it count as new */
     public function counts(?string $newCutoff = null): array
     {
@@ -323,6 +371,7 @@ class ListingRepository
         $sample = (int) $this->pdo->query('SELECT COUNT(*) c FROM listings WHERE is_sample = 1')->fetch()['c'];
         $latest = $this->pdo->query('SELECT MAX(scraped_at) m FROM listings')->fetch()['m'];
         $changed = (int) $this->pdo->query('SELECT COUNT(*) c FROM listings WHERE previous_price IS NOT NULL')->fetch()['c'];
+        $starred = (int) $this->pdo->query('SELECT COUNT(*) c FROM listings WHERE is_starred = 1')->fetch()['c'];
 
         $new = 0;
         if ($newCutoff !== null) {
@@ -337,6 +386,7 @@ class ListingRepository
             'live'         => $total - $sample,
             'new'          => $new,
             'price_changed' => $changed,
+            'starred'      => $starred,
             'last_scraped' => $latest,
         ];
     }

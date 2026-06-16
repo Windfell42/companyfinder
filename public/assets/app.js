@@ -39,6 +39,7 @@ function currentQuery() {
     p.set('min_cash_flow', $('f-min-cf').value);
     if ($('f-new-only').checked) p.set('new_only', '1');
     if ($('f-changed-only').checked) p.set('changed_only', '1');
+    if ($('f-starred-only').checked) p.set('starred_only', '1');
     p.set('w_price', $('w-price').value);
     p.set('w_cash_flow', $('w-cf').value);
     p.set('w_proximity', $('w-prox').value);
@@ -62,7 +63,7 @@ async function loadMeta() {
     const stale = c.last_scraped ? new Date(c.last_scraped).toLocaleDateString() : 'never';
     $('meta').innerHTML =
         `<div>${c.total} listings <span class="pill">${c.live} live</span> <span class="pill">${c.sample} sample</span></div>` +
-        `<div><span class="pill">${c.new || 0} new</span> <span class="pill">${c.price_changed || 0} price changed</span></div>` +
+        `<div><span class="pill">${c.new || 0} new</span> <span class="pill">${c.price_changed || 0} price changed</span> <span class="pill">★ ${c.starred || 0}</span></div>` +
         `<div>Last imported: ${stale}</div>`;
 }
 
@@ -125,13 +126,16 @@ function renderListings(listings, anchor) {
                 `${pc.pct !== null ? ` (${pc.pct > 0 ? '+' : ''}${pc.pct}%)` : ''} from ${fmtMoney(pc.previous)}${when}</div>`;
         }
 
+        const starred = Number(l.is_starred) === 1;
+        const star = `<button class="star-btn ${starred ? 'on' : ''}" data-source="${esc(l.source)}" data-id="${esc(l.external_id)}" title="${starred ? 'Remove from interesting' : 'Mark as interesting'}">${starred ? '★' : '☆'}</button>`;
+
         return `
         <div class="listing">
             <div class="score-badge" title="Price ${b.price ?? '—'} / Cash flow ${b.cash_flow ?? '—'} / Proximity ${b.proximity ?? '—'}">
                 ${l.score}<small>SCORE</small>
             </div>
             <div>
-                <div class="title">${newBadge}<a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.title)}</a> ${sample}</div>
+                <div class="title">${star}${newBadge}<a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.title)}</a> ${sample}</div>
                 <div class="facts">
                     <span class="tag">${esc(l.business_type || 'Uncategorized')}</span>
                     <span>${esc(l.location || 'DFW')}</span>
@@ -141,6 +145,11 @@ function renderListings(listings, anchor) {
                     <a href="#" class="hist-link" data-source="${esc(l.source)}" data-id="${esc(l.external_id)}">price history</a>
                 </div>
                 <div class="breakdown">Score parts → price ${b.price ?? '—'} · cash flow ${b.cash_flow ?? '—'} · proximity ${b.proximity ?? '—'}</div>
+                <div class="tags-row">
+                    <input class="tags-input" type="text" placeholder="add tags (comma separated)…"
+                        value="${esc(l.tags || '')}" data-source="${esc(l.source)}" data-id="${esc(l.external_id)}">
+                    <span class="tags-saved" hidden>saved ✓</span>
+                </div>
                 <div class="hist-panel" hidden></div>
             </div>
             <div class="nums">
@@ -152,6 +161,50 @@ function renderListings(listings, anchor) {
         </div>`;
     }).join('');
 }
+
+// Save tag/star metadata for a listing.
+async function saveMeta(source, id, fields) {
+    const body = new URLSearchParams({ source, external_id: id, ...fields });
+    const res = await apiFetch('tag.php', { method: 'POST', body });
+    return res.json();
+}
+
+// Star toggle (interesting flag).
+$('results').addEventListener('click', async (e) => {
+    const btn = e.target.closest('.star-btn');
+    if (!btn) return;
+    const turningOn = !btn.classList.contains('on');
+    btn.classList.toggle('on', turningOn);
+    btn.textContent = turningOn ? '★' : '☆';
+    try {
+        await saveMeta(btn.dataset.source, btn.dataset.id, { starred: turningOn ? '1' : '0' });
+        await loadMeta(); // refresh the "interesting" count in the header
+    } catch (err) {
+        // revert on failure
+        btn.classList.toggle('on', !turningOn);
+        btn.textContent = turningOn ? '☆' : '★';
+    }
+});
+
+// Tags: save on Enter or blur.
+function wireTagSave(input) {
+    saveMeta(input.dataset.source, input.dataset.id, { tags: input.value }).then(() => {
+        const saved = input.parentElement.querySelector('.tags-saved');
+        if (saved) { saved.hidden = false; setTimeout(() => { saved.hidden = true; }, 1500); }
+        loadMeta();
+    }).catch(() => {});
+}
+$('results').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && e.target.classList.contains('tags-input')) {
+        e.preventDefault();
+        e.target.blur();
+    }
+});
+$('results').addEventListener('blur', (e) => {
+    if (e.target.classList && e.target.classList.contains('tags-input')) {
+        wireTagSave(e.target);
+    }
+}, true);
 
 // Price-history expander (event-delegated since rows are re-rendered).
 $('results').addEventListener('click', async (e) => {
@@ -186,10 +239,10 @@ function syncWeightLabels() {
 ['w-price', 'w-cf', 'w-prox'].forEach((id) => $(id).addEventListener('input', syncWeightLabels));
 $('apply').addEventListener('click', loadResults);
 $('sort').addEventListener('change', loadResults);
-['f-new-only', 'f-changed-only'].forEach((id) => $(id).addEventListener('change', loadResults));
+['f-new-only', 'f-changed-only', 'f-starred-only'].forEach((id) => $(id).addEventListener('change', loadResults));
 $('reset').addEventListener('click', () => {
     ['f-source', 'f-type', 'f-contains', 'f-not-contains', 'f-min-price', 'f-max-price', 'f-min-cf'].forEach((id) => $(id).value = '');
-    $('f-new-only').checked = false; $('f-changed-only').checked = false;
+    $('f-new-only').checked = false; $('f-changed-only').checked = false; $('f-starred-only').checked = false;
     $('w-price').value = 30; $('w-cf').value = 40; $('w-prox').value = 30;
     syncWeightLabels();
     loadResults();

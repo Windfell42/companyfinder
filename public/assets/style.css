@@ -134,6 +134,18 @@ button.ghost { background: transparent; color: var(--muted); border: 1px solid v
 .hist-list { margin: 4px 0 0; padding-left: 16px; }
 .check { display: flex; align-items: center; gap: 8px; color: var(--text); }
 .check input { width: auto; margin: 0; }
+.star-btn {
+    width: auto; margin: 0 6px 0 0; padding: 0; background: none; border: none;
+    color: var(--muted); font-size: 18px; line-height: 1; cursor: pointer; vertical-align: middle;
+}
+.star-btn.on { color: var(--warn); }
+.star-btn:hover { color: var(--warn); }
+.tags-row { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.tags-input {
+    flex: 1; max-width: 360px; padding: 5px 8px; font-size: 12px;
+    background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px; color: var(--text);
+}
+.tags-saved { color: var(--good); font-size: 11px; }
 .empty { padding: 30px; text-align: center; color: var(--muted); }
 
 .import-card summary {

@@ -56,6 +56,7 @@ $exclude = htmlspecialchars(implode(', ', $config['exclude_keywords']));
 
         <label class="check"><input type="checkbox" id="f-new-only"> New listings only</label>
         <label class="check"><input type="checkbox" id="f-changed-only"> Price-changed only</label>
+        <label class="check"><input type="checkbox" id="f-starred-only"> ★ Interesting only</label>
 
         <fieldset class="weights">
             <legend>Scoring weights</legend>

@@ -31,6 +31,7 @@ $newCutoff = date('c', strtotime("-{$daysNew} days"));
 if ($action === 'meta') {
     echo json_encode([
         'business_types' => $repo->businessTypes(),
+        'tags'           => $repo->tags(),
         'counts'         => $repo->counts($newCutoff),
         'region'         => $config['region'],
         'anchor'         => $config['anchor'],
@@ -59,6 +60,7 @@ $filters = [
     'new_only'      => !empty($_GET['new_only']),
     'new_cutoff'    => $newCutoff,
     'changed_only'  => !empty($_GET['changed_only']),
+    'starred_only'  => !empty($_GET['starred_only']),
 ];
 
 // Scoring weights are optional UI overrides; fall back to config defaults.

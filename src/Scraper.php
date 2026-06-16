@@ -542,9 +542,13 @@ class Scraper
         }
 
         $data['external_id'] = $this->idFromUrl($data['url']);
-        $data['business_type'] = $data['business_type'] !== ''
-            ? $data['business_type']
-            : 'Uncategorized';
+        // The sources rarely expose a category, so infer one from the text
+        // when none was supplied.
+        $type = trim((string) ($data['business_type'] ?? ''));
+        if ($type === '' || strtolower($type) === 'uncategorized') {
+            $type = Classifier::classify($data['title'], $data['description'] ?? '');
+        }
+        $data['business_type'] = $type;
 
         $coords = Geo::coordsFor($data['location'] ?? '');
         $data['latitude']  = $coords[0] ?? null;
