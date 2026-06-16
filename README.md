@@ -88,6 +88,10 @@ shared hosting:
    Same parsing, exclusion (Restaurant/franchise), geocoding and scoring as the
    live scraper — just with the fetch done by a real browser.
 
+   No shell or FTP? Use the **Import listings from saved HTML** panel at the top
+   of the dashboard to upload the file(s) or paste the page source directly in
+   the browser (handled by `public/import.php`).
+
 2. **Rendering proxy / scraping API (best for automation).** Services like
    ScraperAPI, ScrapingBee, ZenRows or Bright Data fetch and render the page
    for you and return clean HTML; you call them with ordinary PHP cURL, which

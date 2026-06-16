@@ -65,6 +65,38 @@ $exclude = htmlspecialchars(implode(', ', $config['exclude_keywords']));
     </aside>
 
     <section class="content">
+        <details class="card import-card" id="import-card">
+            <summary>
+                <span>Import listings from saved HTML</span>
+                <span class="hint">No shell/FTP needed — for sites that block direct scraping</span>
+            </summary>
+            <div class="import-body">
+                <p class="note">
+                    Open the search results in your browser, use <strong>Save Page As → HTML Only</strong>
+                    (or copy the page source), then upload/paste it here. Listings are parsed server-side
+                    with the same Restaurant/franchise exclusion and scoring as the live scraper.
+                </p>
+                <form id="import-form">
+                    <div class="row">
+                        <label>Source site
+                            <select name="source" id="i-source">
+                                <option value="bizbuysell">BizBuySell</option>
+                                <option value="bizquest">BizQuest</option>
+                            </select>
+                        </label>
+                        <label>HTML file(s)
+                            <input type="file" name="files[]" id="i-files" accept=".html,.htm,text/html" multiple>
+                        </label>
+                    </div>
+                    <label>…or paste page source
+                        <textarea name="html" id="i-html" rows="4" placeholder="Paste the saved page HTML here"></textarea>
+                    </label>
+                    <button type="submit" class="primary" id="i-submit">Import</button>
+                    <div id="import-result" class="import-result"></div>
+                </form>
+            </div>
+        </details>
+
         <div class="charts">
             <div class="card">
                 <h3>Trend by business type</h3>

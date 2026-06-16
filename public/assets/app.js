@@ -38,11 +38,14 @@ async function loadMeta() {
     const res = await fetch('api.php?action=meta');
     const meta = await res.json();
     const sel = $('f-type');
+    const current = sel.value;
+    sel.innerHTML = '<option value="">All types</option>';
     meta.business_types.forEach((t) => {
         const o = document.createElement('option');
         o.value = t; o.textContent = t;
         sel.appendChild(o);
     });
+    sel.value = current;
     const c = meta.counts;
     const stale = c.last_scraped ? new Date(c.last_scraped).toLocaleDateString() : 'never';
     $('meta').innerHTML =
@@ -135,6 +138,50 @@ $('reset').addEventListener('click', () => {
     $('w-price').value = 30; $('w-cf').value = 40; $('w-prox').value = 30;
     syncWeightLabels();
     loadResults();
+});
+
+// --- import ----------------------------------------------------------------
+
+$('import-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const out = $('import-result');
+    const btn = $('i-submit');
+    const hasFile = $('i-files').files.length > 0;
+    const hasPaste = $('i-html').value.trim() !== '';
+    if (!hasFile && !hasPaste) {
+        out.className = 'import-result err';
+        out.textContent = 'Choose at least one HTML file or paste page source.';
+        return;
+    }
+
+    btn.disabled = true;
+    out.className = 'import-result';
+    out.textContent = 'Importing…';
+    try {
+        const res = await fetch('import.php', { method: 'POST', body: new FormData(e.target) });
+        const data = await res.json();
+        if (!res.ok || data.error) {
+            out.className = 'import-result err';
+            out.textContent = data.error || 'Import failed.';
+            return;
+        }
+        const detail = (data.files || []).map((f) =>
+            `<li>${esc(f.file)}: parsed ${f.parsed}, excluded ${f.excluded}, imported ${f.imported}</li>`).join('');
+        out.className = 'import-result ok';
+        out.innerHTML = `Imported ${data.imported} listing(s) from ${esc(data.source)}.` +
+            (detail ? `<ul>${detail}</ul>` : '') +
+            ((data.errors && data.errors.length) ? `<ul>${data.errors.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : '');
+        $('i-files').value = '';
+        $('i-html').value = '';
+        // Refresh header counts, type list, and results to include new rows.
+        await loadMeta();
+        await loadResults();
+    } catch (err) {
+        out.className = 'import-result err';
+        out.textContent = 'Import failed: ' + err.message;
+    } finally {
+        btn.disabled = false;
+    }
 });
 
 (async function init() {
