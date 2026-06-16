@@ -60,6 +60,58 @@ flagged with a **SAMPLE** badge in the UI and counted separately in the header.
 > and `robots.txt`. The scraper sends a realistic User-Agent and pauses between
 > page requests, but you are responsible for using it within the sites' terms.
 
+## Parsing options on IONOS shared hosting
+
+It helps to split "scraping" into two steps:
+
+- **Parsing** (HTML → structured listings) is pure PHP — `DOMDocument` /
+  `DOMXPath`, JSON-LD decoding, and regex — and runs fine on IONOS shared
+  hosting with no extra packages.
+- **Fetching** is the hard part: BizBuySell and BizQuest sit behind anti-bot
+  protection that returns **HTTP 403** to plain server-side requests, and
+  shared hosting **cannot run a headless browser** (no Chrome/Puppeteer, no
+  root) to render past it.
+
+Given that, there are three workable approaches, in order of reliability on
+shared hosting:
+
+1. **Offline HTML import (most reliable, no extra cost).** Open the search
+   page in your own browser (which clears the bot wall for you), use
+   *Save Page As → Web Page, HTML Only*, upload the file, and parse it
+   server-side:
+
+   ```bash
+   php bin/import.php saved/bizbuysell-dfw-page1.html --source=bizbuysell
+   php bin/import.php saved/ --source=bizquest        # whole folder of *.html
+   ```
+
+   Same parsing, exclusion (Restaurant/franchise), geocoding and scoring as the
+   live scraper — just with the fetch done by a real browser.
+
+2. **Rendering proxy / scraping API (best for automation).** Services like
+   ScraperAPI, ScrapingBee, ZenRows or Bright Data fetch and render the page
+   for you and return clean HTML; you call them with ordinary PHP cURL, which
+   shared hosting allows. Set `http.proxy_template` in `config.php` to the
+   service endpoint (use `{url}` as the target placeholder) and run
+   `php bin/scrape.php` as normal — every fetch is routed through the proxy.
+
+3. **Direct fetch (works only without a bot wall).** Leave `proxy_template`
+   null. This is what `bin/scrape.php` does by default; it succeeds for sites
+   that don't block bots but will hit 403 on these two.
+
+For unattended refreshes, point an IONOS **cron job** at `bin/scrape.php`
+(option 2) — e.g. `php /path/to/bin/scrape.php` once a day. The dashboard reads
+straight from the SQLite database, so it never blocks on a scrape.
+
+### PHP parser libraries (all shared-hosting friendly)
+
+The built-in `DOMDocument`/`DOMXPath` covers everything here with zero
+dependencies. If you prefer a richer API, these are pure-PHP and upload-via-FTP
+friendly (no native extensions): **Symfony DomCrawler + CssSelector** (CSS/XPath
+selectors), **PHP Simple HTML DOM Parser**, and **Masterminds/HTML5** (better
+HTML5 handling). They replace the *parsing* layer only — none of them solve the
+403, so you still need option 1 or 2 to obtain the HTML.
+
 ## Configuration
 
 Everything tunable lives in [`config.php`](config.php):
@@ -71,12 +123,14 @@ Everything tunable lives in [`config.php`](config.php):
 | `anchor`            | Location used for the proximity score (Plano, TX)  |
 | `score_weights`     | Default price / cash-flow / proximity weights      |
 | `sources`           | Per-site search URLs and pagination depth          |
+| `http.proxy_template` | Rendering-proxy / scraping-API endpoint (`{url}`) |
 
 ## Project layout
 
 ```
 config.php              app configuration
-bin/scrape.php          CLI live scraper
+bin/scrape.php          CLI live scraper (direct or via proxy)
+bin/import.php          CLI offline importer for browser-saved HTML
 bin/seed.php            CLI sample-data seeder
 src/Database.php        SQLite connection + schema
 src/Scraper.php         multi-strategy listing scraper

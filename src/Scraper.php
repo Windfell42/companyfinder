@@ -72,10 +72,7 @@ class Scraper
                 break;
             }
 
-            foreach ($found as $listing) {
-                if ($this->isExcluded($listing)) {
-                    continue;
-                }
+            foreach ($this->removeExcluded($found) as $listing) {
                 $listings[$listing['external_id']] = $listing;
             }
 
@@ -100,7 +97,7 @@ class Scraper
 
     private function fetch(string $url): ?string
     {
-        $ch = curl_init($url);
+        $ch = curl_init($this->requestUrl($url));
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_FOLLOWLOCATION => true,
@@ -121,6 +118,20 @@ class Scraper
             return null;
         }
         return (string) $body;
+    }
+
+    /**
+     * Wrap the target URL in the configured scraping-API / proxy template when
+     * one is set, so requests can clear anti-bot walls that a direct fetch
+     * cannot. Falls back to the raw URL otherwise.
+     */
+    private function requestUrl(string $url): string
+    {
+        $template = $this->httpConfig['proxy_template'] ?? null;
+        if (!$template) {
+            return $url;
+        }
+        return str_replace('{url}', rawurlencode($url), $template);
     }
 
     /**
@@ -419,6 +430,19 @@ class Scraper
             return $url;
         }
         return rtrim($base, '/') . '/' . ltrim($url, '/');
+    }
+
+    /**
+     * Drop any listing whose text matches a configured exclusion keyword.
+     * Shared by the live scraper and the offline HTML importer so both apply
+     * the same Restaurant/franchise rules.
+     *
+     * @param array<int,array<string,mixed>> $listings
+     * @return array<int,array<string,mixed>>
+     */
+    public function removeExcluded(array $listings): array
+    {
+        return array_values(array_filter($listings, fn($l) => !$this->isExcluded($l)));
     }
 
     /** @param array<string,mixed> $listing */
