@@ -1,0 +1,144 @@
+'use strict';
+
+// --- helpers ---------------------------------------------------------------
+
+const $ = (id) => document.getElementById(id);
+
+const fmtMoney = (n) => {
+    if (n === null || n === undefined) return '—';
+    const v = Number(n);
+    if (v >= 1_000_000) return '$' + (v / 1_000_000).toFixed(2) + 'M';
+    if (v >= 1_000) return '$' + Math.round(v / 1_000) + 'K';
+    return '$' + v;
+};
+
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]
+));
+
+// --- data fetching ---------------------------------------------------------
+
+function currentQuery() {
+    const p = new URLSearchParams();
+    p.set('source', $('f-source').value);
+    p.set('business_type', $('f-type').value);
+    p.set('contains', $('f-contains').value);
+    p.set('not_contains', $('f-not-contains').value);
+    p.set('min_price', $('f-min-price').value);
+    p.set('max_price', $('f-max-price').value);
+    p.set('min_cash_flow', $('f-min-cf').value);
+    p.set('w_price', $('w-price').value);
+    p.set('w_cash_flow', $('w-cf').value);
+    p.set('w_proximity', $('w-prox').value);
+    p.set('sort', $('sort').value);
+    return p.toString();
+}
+
+async function loadMeta() {
+    const res = await fetch('api.php?action=meta');
+    const meta = await res.json();
+    const sel = $('f-type');
+    meta.business_types.forEach((t) => {
+        const o = document.createElement('option');
+        o.value = t; o.textContent = t;
+        sel.appendChild(o);
+    });
+    const c = meta.counts;
+    const stale = c.last_scraped ? new Date(c.last_scraped).toLocaleDateString() : 'never';
+    $('meta').innerHTML =
+        `<div>${c.total} listings <span class="pill">${c.live} live</span> <span class="pill">${c.sample} sample</span></div>` +
+        `<div>Last scraped: ${stale}</div>`;
+}
+
+async function loadResults() {
+    const res = await fetch('api.php?action=search&' + currentQuery());
+    const data = await res.json();
+    renderTypeChart(data.trends.by_type);
+    renderPriceChart(data.trends.price_histogram);
+    renderListings(data.listings, data.anchor);
+    $('count').textContent = `(${data.count})`;
+}
+
+// --- rendering -------------------------------------------------------------
+
+function barChart(container, rows) {
+    const max = Math.max(1, ...rows.map((r) => r.value));
+    container.innerHTML = rows.map((r) => `
+        <div class="bar-row">
+            <div class="label" title="${esc(r.label)}">${esc(r.label)}</div>
+            <div class="bar-track"><div class="bar-fill" style="width:${(r.value / max * 100).toFixed(1)}%"></div></div>
+            <div class="value">${esc(r.display ?? r.value)}</div>
+        </div>`).join('');
+}
+
+function renderTypeChart(byType) {
+    const rows = byType.slice(0, 10).map((t) => ({
+        label: t.type,
+        value: t.count,
+        display: `${t.count} · avg ${fmtMoney(t.avg_price)}`,
+    }));
+    barChart($('chart-type'), rows);
+}
+
+function renderPriceChart(hist) {
+    const rows = Object.entries(hist).map(([label, value]) => ({ label, value, display: value }));
+    barChart($('chart-price'), rows);
+}
+
+function renderListings(listings, anchor) {
+    const root = $('results');
+    if (!listings.length) {
+        root.innerHTML = '<div class="empty">No listings match these filters.</div>';
+        return;
+    }
+    root.innerHTML = listings.map((l) => {
+        const b = l.score_breakdown || {};
+        const dist = l.distance_mi !== null ? `${l.distance_mi} mi from ${esc(anchor.label.split(',')[0])}` : 'distance n/a';
+        const sample = Number(l.is_sample) ? '<span class="sample-flag">SAMPLE</span>' : '';
+        return `
+        <div class="listing">
+            <div class="score-badge" title="Price ${b.price ?? '—'} / Cash flow ${b.cash_flow ?? '—'} / Proximity ${b.proximity ?? '—'}">
+                ${l.score}<small>SCORE</small>
+            </div>
+            <div>
+                <div class="title"><a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.title)}</a> ${sample}</div>
+                <div class="facts">
+                    <span class="tag">${esc(l.business_type || 'Uncategorized')}</span>
+                    <span>${esc(l.location || 'DFW')}</span>
+                    <span>${dist}</span>
+                    <span>via ${esc(l.source)}</span>
+                </div>
+                <div class="breakdown">Score parts → price ${b.price ?? '—'} · cash flow ${b.cash_flow ?? '—'} · proximity ${b.proximity ?? '—'}</div>
+            </div>
+            <div class="nums">
+                <div class="price">${fmtMoney(l.price)}</div>
+                <div class="cf">cash flow ${fmtMoney(l.cash_flow)}</div>
+                <a class="open-btn" href="${esc(l.url)}" target="_blank" rel="noopener">Open listing →</a>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+// --- wiring ----------------------------------------------------------------
+
+function syncWeightLabels() {
+    $('wv-price').textContent = $('w-price').value;
+    $('wv-cf').textContent = $('w-cf').value;
+    $('wv-prox').textContent = $('w-prox').value;
+}
+
+['w-price', 'w-cf', 'w-prox'].forEach((id) => $(id).addEventListener('input', syncWeightLabels));
+$('apply').addEventListener('click', loadResults);
+$('sort').addEventListener('change', loadResults);
+$('reset').addEventListener('click', () => {
+    ['f-source', 'f-type', 'f-contains', 'f-not-contains', 'f-min-price', 'f-max-price', 'f-min-cf'].forEach((id) => $(id).value = '');
+    $('w-price').value = 30; $('w-cf').value = 40; $('w-prox').value = 30;
+    syncWeightLabels();
+    loadResults();
+});
+
+(async function init() {
+    syncWeightLabels();
+    await loadMeta();
+    await loadResults();
+})();
