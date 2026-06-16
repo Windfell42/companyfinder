@@ -177,10 +177,23 @@ $('import-form').addEventListener('submit', async (e) => {
         }
         const detail = (data.files || []).map((f) =>
             `<li>${esc(f.file)}: parsed ${f.parsed}, excluded ${f.excluded}, imported ${f.imported}</li>`).join('');
+        const previewRows = (data.files || []).flatMap((f) => f.preview || []);
+        const preview = previewRows.length ? `
+            <table class="preview-table">
+                <thead><tr><th>Title</th><th>Price</th><th>Cash flow</th><th>Gross</th><th>Location</th></tr></thead>
+                <tbody>${previewRows.map((p) => `<tr>
+                    <td>${esc(p.title)}</td>
+                    <td>${fmtMoney(p.price)}</td>
+                    <td>${fmtMoney(p.cash_flow)}</td>
+                    <td>${fmtMoney(p.gross_revenue)}</td>
+                    <td>${esc(p.location || '—')}</td>
+                </tr>`).join('')}</tbody>
+            </table>` : '';
         out.className = 'import-result ok';
         out.innerHTML = `Imported ${data.imported} listing(s) from ${esc(data.source)}.` +
             (detail ? `<ul>${detail}</ul>` : '') +
-            ((data.errors && data.errors.length) ? `<ul>${data.errors.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : '');
+            ((data.errors && data.errors.length) ? `<ul>${data.errors.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : '') +
+            preview;
         $('i-files').value = '';
         $('i-html').value = '';
         // Refresh header counts, type list, and results to include new rows.

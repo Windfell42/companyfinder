@@ -99,6 +99,15 @@ foreach ($docs as $label => $html) {
         'parsed'   => count($parsed),
         'excluded' => count($parsed) - count($kept),
         'imported' => $written,
+        // A small preview of what was actually extracted, so mis-parses
+        // (e.g. missing price/cash flow) are easy to spot.
+        'preview'  => array_map(fn($l) => [
+            'title'         => $l['title'],
+            'price'         => $l['price'],
+            'cash_flow'     => $l['cash_flow'],
+            'gross_revenue' => $l['gross_revenue'],
+            'location'      => $l['location'],
+        ], array_slice($kept, 0, 10)),
     ];
 }
 

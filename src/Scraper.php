@@ -135,22 +135,64 @@ class Scraper
     }
 
     /**
-     * Run all extraction strategies and return whatever the first productive
-     * one yields.
+     * Run every extraction strategy and merge their output by listing id.
+     *
+     * The strategies are complementary: BizBuySell's JSON-LD carries clean
+     * titles, prices and locations but no cash flow, while the DOM cards carry
+     * cash flow. Merging fills the gaps. Rows with no financials at all (stray
+     * navigation/city links picked up by the DOM pass) are dropped.
      *
      * @return array<int,array<string,mixed>>
      */
     public function parse(string $html, string $source, string $base): array
     {
-        $listings = $this->parseJsonLd($html, $source, $base);
-        if ($listings) {
-            return $listings;
+        $byId = [];
+        $strategies = [
+            $this->parseJsonLd($html, $source, $base),
+            $this->parseInlineState($html, $source, $base),
+            $this->parseDom($html, $source, $base),
+        ];
+        foreach ($strategies as $listings) {
+            foreach ($listings as $l) {
+                $id = $l['external_id'];
+                $byId[$id] = isset($byId[$id]) ? $this->mergeListing($byId[$id], $l) : $l;
+            }
         }
-        $listings = $this->parseInlineState($html, $source, $base);
-        if ($listings) {
-            return $listings;
+
+        // Keep only rows that have at least one financial figure; this filters
+        // out non-listing links the DOM pass may have matched.
+        return array_values(array_filter($byId, fn($l) =>
+            $l['price'] !== null || $l['cash_flow'] !== null || $l['gross_revenue'] !== null));
+    }
+
+    /**
+     * Combine two records for the same listing, preferring existing non-empty
+     * values and filling in anything that was missing.
+     *
+     * @param array<string,mixed> $a existing
+     * @param array<string,mixed> $b new
+     * @return array<string,mixed>
+     */
+    private function mergeListing(array $a, array $b): array
+    {
+        // Prefer the longer, more descriptive title.
+        if (strlen((string) ($b['title'] ?? '')) > strlen((string) ($a['title'] ?? ''))) {
+            $a['title'] = $b['title'];
         }
-        return $this->parseDom($html, $source, $base);
+        foreach (['url', 'description', 'location'] as $k) {
+            if (empty($a[$k]) && !empty($b[$k])) {
+                $a[$k] = $b[$k];
+            }
+        }
+        if ((empty($a['business_type']) || $a['business_type'] === 'Uncategorized') && !empty($b['business_type']) && $b['business_type'] !== 'Uncategorized') {
+            $a['business_type'] = $b['business_type'];
+        }
+        foreach (['price', 'cash_flow', 'gross_revenue', 'latitude', 'longitude'] as $k) {
+            if (($a[$k] ?? null) === null && ($b[$k] ?? null) !== null) {
+                $a[$k] = $b[$k];
+            }
+        }
+        return $a;
     }
 
     /** @return array<int,array<string,mixed>> */
@@ -166,15 +208,15 @@ class Scraper
             if (!is_array($data)) {
                 continue;
             }
-            // Normalize to a flat list of nodes to inspect.
-            $nodes = isset($data[0]) ? $data : [$data];
-            foreach ($nodes as $node) {
-                $items = $this->itemsFromNode($node);
-                foreach ($items as $item) {
-                    $listing = $this->listingFromSchema($item, $source, $base);
-                    if ($listing) {
-                        $out[] = $listing;
-                    }
+            // BizBuySell wraps listings in an `about` array of ListItems, other
+            // sites use ItemList/@graph/Product directly. Rather than guess the
+            // shape, deep-walk for anything that looks like a Product node.
+            $products = [];
+            $this->collectSchemaProducts($data, $products);
+            foreach ($products as $item) {
+                $listing = $this->listingFromSchema($item, $source, $base);
+                if ($listing) {
+                    $out[] = $listing;
                 }
             }
         }
@@ -182,36 +224,31 @@ class Scraper
     }
 
     /**
-     * Pull product/listing nodes out of a JSON-LD node, handling ItemList
-     * wrappers and @graph collections.
+     * Recursively gather schema.org Product nodes from a decoded JSON-LD tree,
+     * regardless of how they are nested (about / itemListElement / item /
+     * @graph / arrays).
      *
-     * @param array<string,mixed> $node
-     * @return array<int,array<string,mixed>>
+     * @param array<int,array<string,mixed>> $out
      */
-    private function itemsFromNode(array $node): array
+    private function collectSchemaProducts(mixed $node, array &$out): void
     {
-        if (isset($node['@graph']) && is_array($node['@graph'])) {
-            $out = [];
-            foreach ($node['@graph'] as $g) {
-                $out = array_merge($out, $this->itemsFromNode($g));
+        if (!is_array($node)) {
+            return;
+        }
+        $type = $node['@type'] ?? null;
+        $isProduct = is_string($type)
+            ? in_array($type, ['Product', 'LocalBusiness', 'Service'], true)
+            : (is_array($type) && array_intersect($type, ['Product', 'LocalBusiness', 'Service']));
+        if ($isProduct && !empty($node['name'])) {
+            $out[] = $node;
+            // Don't recurse into a product's own sub-objects.
+            return;
+        }
+        foreach ($node as $child) {
+            if (is_array($child)) {
+                $this->collectSchemaProducts($child, $out);
             }
-            return $out;
         }
-        $type = $node['@type'] ?? '';
-        if ($type === 'ItemList' && isset($node['itemListElement'])) {
-            $out = [];
-            foreach ($node['itemListElement'] as $el) {
-                $item = $el['item'] ?? $el;
-                if (is_array($item)) {
-                    $out[] = $item;
-                }
-            }
-            return $out;
-        }
-        if (in_array($type, ['Product', 'Offer', 'LocalBusiness', 'Service'], true)) {
-            return [$node];
-        }
-        return [];
     }
 
     /**
@@ -250,18 +287,22 @@ class Scraper
     /** @param array<string,mixed> $item */
     private function extractLocation(array $item): string
     {
-        $addr = $item['address'] ?? null;
+        // BizBuySell nests the address under offers.availableAtOrFrom; other
+        // shapes put it directly on the item. Check both.
+        $addr = $item['address']
+            ?? ($item['offers']['availableAtOrFrom']['address'] ?? null);
+
         if (is_array($addr)) {
-            $parts = array_filter([
-                $addr['addressLocality'] ?? null,
-                $addr['addressRegion'] ?? null,
-            ]);
+            $parts = array_filter(array_map('trim', [
+                (string) ($addr['addressLocality'] ?? ''),
+                (string) ($addr['addressRegion'] ?? ''),
+            ]), fn($p) => $p !== '');
             return implode(', ', $parts);
         }
         if (is_string($addr)) {
-            return $addr;
+            return trim($addr);
         }
-        return (string) ($item['areaServed'] ?? '');
+        return trim((string) ($item['areaServed'] ?? ''));
     }
 
     private function extractPrice(mixed $offers): ?float
@@ -384,8 +425,11 @@ class Scraper
         libxml_clear_errors();
         $xp = new DOMXPath($doc);
 
-        // Anchor on links to detail pages, which both sites expose.
-        $nodes = $xp->query("//a[contains(@href,'business-for-sale') or contains(@href,'/Business-Opportunity') or contains(@href,'businesses-for-sale')]");
+        // Anchor on links to detail pages. Match case-insensitively and cover
+        // BizBuySell's "/business-opportunity/<id>/" as well as the
+        // "...-for-sale" variants other pages use.
+        $lower = "translate(@href,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz')";
+        $nodes = $xp->query("//a[contains($lower,'business-opportunity') or contains($lower,'business-for-sale') or contains($lower,'businesses-for-sale')]");
         if ($nodes === false) {
             return [];
         }
