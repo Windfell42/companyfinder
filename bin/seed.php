@@ -85,3 +85,28 @@ foreach ($rows as $i => $r) {
 
 $n = $repo->upsertMany($listings);
 fwrite(STDOUT, "Seeded $n sample listings.\n");
+
+// Make the change-tracking demo realistic: backdate most rows so they look
+// "established", leave the last few first-seen today (they show as NEW), and
+// simulate a price drop on a couple so price-change indicators appear.
+$pdo = $db->pdo();
+$old = date('c', strtotime('-30 days'));
+
+// Backdate everything except the final 5 sample rows.
+$pdo->exec("UPDATE listings SET first_seen = '$old', last_seen = '$old'
+            WHERE is_sample = 1 AND external_id NOT IN
+            (SELECT external_id FROM listings WHERE is_sample = 1 ORDER BY external_id DESC LIMIT 5)");
+
+// Simulate price reductions on two established listings by re-importing them
+// with a lower price (this exercises the real change-tracking path).
+$reduce = $pdo->query("SELECT source, external_id, title, url, description, business_type,
+                              location, price, cash_flow, gross_revenue, latitude, longitude
+                       FROM listings WHERE is_sample = 1 AND first_seen = '$old'
+                       ORDER BY price DESC LIMIT 2")->fetchAll();
+foreach ($reduce as $r) {
+    $r['price']      = round($r['price'] * 0.88); // ~12% price cut
+    $r['is_sample']  = 1;
+    $r['scraped_at'] = $now;
+    $repo->upsertMany([$r]);
+}
+fwrite(STDOUT, "Backdated history and simulated " . count($reduce) . " price reductions for the demo.\n");

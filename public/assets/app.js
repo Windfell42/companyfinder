@@ -37,6 +37,8 @@ function currentQuery() {
     p.set('min_price', $('f-min-price').value);
     p.set('max_price', $('f-max-price').value);
     p.set('min_cash_flow', $('f-min-cf').value);
+    if ($('f-new-only').checked) p.set('new_only', '1');
+    if ($('f-changed-only').checked) p.set('changed_only', '1');
     p.set('w_price', $('w-price').value);
     p.set('w_cash_flow', $('w-cf').value);
     p.set('w_proximity', $('w-prox').value);
@@ -60,7 +62,8 @@ async function loadMeta() {
     const stale = c.last_scraped ? new Date(c.last_scraped).toLocaleDateString() : 'never';
     $('meta').innerHTML =
         `<div>${c.total} listings <span class="pill">${c.live} live</span> <span class="pill">${c.sample} sample</span></div>` +
-        `<div>Last scraped: ${stale}</div>`;
+        `<div><span class="pill">${c.new || 0} new</span> <span class="pill">${c.price_changed || 0} price changed</span></div>` +
+        `<div>Last imported: ${stale}</div>`;
 }
 
 async function loadResults() {
@@ -108,29 +111,69 @@ function renderListings(listings, anchor) {
         const b = l.score_breakdown || {};
         const dist = l.distance_mi !== null ? `${l.distance_mi} mi from ${esc(anchor.label.split(',')[0])}` : 'distance n/a';
         const sample = Number(l.is_sample) ? '<span class="sample-flag">SAMPLE</span>' : '';
+        const newBadge = l.is_new ? '<span class="new-flag">NEW</span>' : '';
+        const seen = l.first_seen ? `first seen ${new Date(l.first_seen).toLocaleDateString()}` : '';
+
+        // Price-change indicator (down = good for a buyer).
+        let priceChange = '';
+        if (l.price_change) {
+            const pc = l.price_change;
+            const down = pc.delta < 0;
+            const arrow = down ? '▼' : '▲';
+            const when = pc.at ? ` on ${new Date(pc.at).toLocaleDateString()}` : '';
+            priceChange = `<div class="price-change ${down ? 'down' : 'up'}">${arrow} ${fmtMoney(Math.abs(pc.delta))}` +
+                `${pc.pct !== null ? ` (${pc.pct > 0 ? '+' : ''}${pc.pct}%)` : ''} from ${fmtMoney(pc.previous)}${when}</div>`;
+        }
+
         return `
         <div class="listing">
             <div class="score-badge" title="Price ${b.price ?? '—'} / Cash flow ${b.cash_flow ?? '—'} / Proximity ${b.proximity ?? '—'}">
                 ${l.score}<small>SCORE</small>
             </div>
             <div>
-                <div class="title"><a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.title)}</a> ${sample}</div>
+                <div class="title">${newBadge}<a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.title)}</a> ${sample}</div>
                 <div class="facts">
                     <span class="tag">${esc(l.business_type || 'Uncategorized')}</span>
                     <span>${esc(l.location || 'DFW')}</span>
                     <span>${dist}</span>
                     <span>via ${esc(l.source)}</span>
+                    ${seen ? `<span>${seen}</span>` : ''}
+                    <a href="#" class="hist-link" data-source="${esc(l.source)}" data-id="${esc(l.external_id)}">price history</a>
                 </div>
                 <div class="breakdown">Score parts → price ${b.price ?? '—'} · cash flow ${b.cash_flow ?? '—'} · proximity ${b.proximity ?? '—'}</div>
+                <div class="hist-panel" hidden></div>
             </div>
             <div class="nums">
                 <div class="price">${fmtMoney(l.price)}</div>
+                ${priceChange}
                 <div class="cf">cash flow ${fmtMoney(l.cash_flow)}</div>
                 <a class="open-btn" href="${esc(l.url)}" target="_blank" rel="noopener">Open listing →</a>
             </div>
         </div>`;
     }).join('');
 }
+
+// Price-history expander (event-delegated since rows are re-rendered).
+$('results').addEventListener('click', async (e) => {
+    const link = e.target.closest('.hist-link');
+    if (!link) return;
+    e.preventDefault();
+    const panel = link.closest('.listing').querySelector('.hist-panel');
+    if (!panel.hidden) { panel.hidden = true; return; }
+    panel.hidden = false;
+    panel.textContent = 'Loading…';
+    try {
+        const res = await apiFetch(`api.php?action=history&source=${encodeURIComponent(link.dataset.source)}&external_id=${encodeURIComponent(link.dataset.id)}`);
+        const data = await res.json();
+        const rows = data.history || [];
+        panel.innerHTML = rows.length
+            ? '<ul class="hist-list">' + rows.map((h) =>
+                `<li>${new Date(h.recorded_at).toLocaleDateString()} — ${fmtMoney(h.price)}</li>`).join('') + '</ul>'
+            : '<span class="muted">No recorded price changes yet.</span>';
+    } catch (err) {
+        panel.textContent = 'Could not load history.';
+    }
+});
 
 // --- wiring ----------------------------------------------------------------
 
@@ -143,8 +186,10 @@ function syncWeightLabels() {
 ['w-price', 'w-cf', 'w-prox'].forEach((id) => $(id).addEventListener('input', syncWeightLabels));
 $('apply').addEventListener('click', loadResults);
 $('sort').addEventListener('change', loadResults);
+['f-new-only', 'f-changed-only'].forEach((id) => $(id).addEventListener('change', loadResults));
 $('reset').addEventListener('click', () => {
     ['f-source', 'f-type', 'f-contains', 'f-not-contains', 'f-min-price', 'f-max-price', 'f-min-cf'].forEach((id) => $(id).value = '');
+    $('f-new-only').checked = false; $('f-changed-only').checked = false;
     $('w-price').value = 30; $('w-cf').value = 40; $('w-prox').value = 30;
     syncWeightLabels();
     loadResults();

@@ -121,6 +121,19 @@ button.ghost { background: transparent; color: var(--muted); border: 1px solid v
     background: var(--accent); color: #04101f; border-radius: 6px; text-decoration: none; font-weight: 600;
 }
 .sample-flag { color: var(--warn); font-size: 10px; border: 1px solid var(--warn); border-radius: 4px; padding: 0 5px; }
+.new-flag {
+    background: var(--good); color: #04140c; font-size: 10px; font-weight: 800;
+    border-radius: 4px; padding: 1px 6px; margin-right: 6px; letter-spacing: 0.5px;
+}
+.price-change { font-size: 12px; font-weight: 600; margin-top: 2px; }
+.price-change.down { color: var(--good); }
+.price-change.up { color: #ff6b6b; }
+.facts .hist-link { color: var(--accent); text-decoration: none; }
+.facts .hist-link:hover { text-decoration: underline; }
+.hist-panel { margin-top: 8px; font-size: 12px; color: var(--muted); }
+.hist-list { margin: 4px 0 0; padding-left: 16px; }
+.check { display: flex; align-items: center; gap: 8px; color: var(--text); }
+.check input { width: auto; margin: 0; }
 .empty { padding: 30px; text-align: center; color: var(--muted); }
 
 .import-card summary {

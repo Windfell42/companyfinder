@@ -17,31 +17,59 @@ class ListingRepository
      *
      * @param array<int,array<string,mixed>> $listings
      */
+    /**
+     * Insert or update a batch of scraped listings, tracking changes over time.
+     *
+     * On first sight a row gets first_seen = last_seen = now and a history
+     * entry. On a repeat sighting last_seen advances; if the asking price
+     * changed, previous_price / price_changed_at are stamped and a new history
+     * entry is recorded. first_seen is never overwritten. A null incoming price
+     * is treated as "unknown" and leaves the stored price untouched.
+     *
+     * Returns the number of rows written.
+     *
+     * @param array<int,array<string,mixed>> $listings
+     */
     public function upsertMany(array $listings): int
     {
-        $sql = <<<SQL
+        $find = $this->pdo->prepare('SELECT price, first_seen, previous_price, price_changed_at FROM listings WHERE source = :source AND external_id = :external_id');
+
+        $insert = $this->pdo->prepare(<<<SQL
             INSERT INTO listings
                 (source, external_id, title, url, description, business_type,
                  location, state, price, cash_flow, gross_revenue,
-                 latitude, longitude, distance_mi, is_sample, scraped_at)
+                 latitude, longitude, distance_mi, is_sample, scraped_at,
+                 first_seen, last_seen, previous_price, price_changed_at)
             VALUES
                 (:source, :external_id, :title, :url, :description, :business_type,
                  :location, :state, :price, :cash_flow, :gross_revenue,
-                 :latitude, :longitude, :distance_mi, :is_sample, :scraped_at)
-            ON CONFLICT(source, external_id) DO UPDATE SET
-                title=excluded.title, url=excluded.url, description=excluded.description,
-                business_type=excluded.business_type, location=excluded.location,
-                state=excluded.state, price=excluded.price, cash_flow=excluded.cash_flow,
-                gross_revenue=excluded.gross_revenue, latitude=excluded.latitude,
-                longitude=excluded.longitude, distance_mi=excluded.distance_mi,
-                is_sample=excluded.is_sample, scraped_at=excluded.scraped_at
-        SQL;
+                 :latitude, :longitude, :distance_mi, :is_sample, :scraped_at,
+                 :first_seen, :last_seen, :previous_price, :price_changed_at)
+        SQL);
 
-        $stmt = $this->pdo->prepare($sql);
+        $update = $this->pdo->prepare(<<<SQL
+            UPDATE listings SET
+                title=:title, url=:url, description=:description, business_type=:business_type,
+                location=:location, state=:state, price=:price, cash_flow=:cash_flow,
+                gross_revenue=:gross_revenue, latitude=:latitude, longitude=:longitude,
+                distance_mi=:distance_mi, is_sample=:is_sample, scraped_at=:scraped_at,
+                last_seen=:last_seen, previous_price=:previous_price, price_changed_at=:price_changed_at
+            WHERE source=:source AND external_id=:external_id
+        SQL);
+
+        $history = $this->pdo->prepare('INSERT INTO listing_history (source, external_id, price, cash_flow, gross_revenue, recorded_at) VALUES (:source, :external_id, :price, :cash_flow, :gross_revenue, :recorded_at)');
+
         $count = 0;
+        $this->pdo->beginTransaction();
         foreach ($listings as $l) {
+            $now      = $l['scraped_at'] ?? date('c');
             $distance = $this->distanceFor($l);
-            $stmt->execute([
+            $newPrice = $l['price'] ?? null;
+
+            $find->execute([':source' => $l['source'], ':external_id' => $l['external_id']]);
+            $existing = $find->fetch();
+
+            $common = [
                 ':source'        => $l['source'],
                 ':external_id'   => $l['external_id'],
                 ':title'         => $l['title'],
@@ -50,18 +78,58 @@ class ListingRepository
                 ':business_type' => $l['business_type'] ?? null,
                 ':location'      => $l['location'] ?? null,
                 ':state'         => $l['state'] ?? 'TX',
-                ':price'         => $l['price'] ?? null,
                 ':cash_flow'     => $l['cash_flow'] ?? null,
                 ':gross_revenue' => $l['gross_revenue'] ?? null,
                 ':latitude'      => $l['latitude'] ?? null,
                 ':longitude'     => $l['longitude'] ?? null,
                 ':distance_mi'   => $distance,
                 ':is_sample'     => $l['is_sample'] ?? 0,
-                ':scraped_at'    => $l['scraped_at'] ?? date('c'),
-            ]);
+                ':scraped_at'    => $now,
+            ];
+
+            if (!$existing) {
+                $insert->execute($common + [
+                    ':price'            => $newPrice,
+                    ':first_seen'       => $now,
+                    ':last_seen'        => $now,
+                    ':previous_price'   => null,
+                    ':price_changed_at' => null,
+                ]);
+                $this->recordHistory($history, $l, $newPrice, $now);
+            } else {
+                $oldPrice = $existing['price'] !== null ? (float) $existing['price'] : null;
+                // Keep the existing price if no new price was found this time.
+                $effectivePrice = $newPrice ?? $oldPrice;
+                $priceChanged = $newPrice !== null && $oldPrice !== null
+                    && abs($oldPrice - (float) $newPrice) > 0.5;
+
+                $update->execute($common + [
+                    ':price'            => $effectivePrice,
+                    ':last_seen'        => $now,
+                    ':previous_price'   => $priceChanged ? $oldPrice : $existing['previous_price'],
+                    ':price_changed_at' => $priceChanged ? $now : $existing['price_changed_at'],
+                ]);
+                if ($priceChanged) {
+                    $this->recordHistory($history, $l, $newPrice, $now);
+                }
+            }
             $count++;
         }
+        $this->pdo->commit();
         return $count;
+    }
+
+    /** @param array<string,mixed> $l */
+    private function recordHistory(\PDOStatement $stmt, array $l, ?float $price, string $when): void
+    {
+        $stmt->execute([
+            ':source'        => $l['source'],
+            ':external_id'   => $l['external_id'],
+            ':price'         => $price,
+            ':cash_flow'     => $l['cash_flow'] ?? null,
+            ':gross_revenue' => $l['gross_revenue'] ?? null,
+            ':recorded_at'   => $when,
+        ]);
     }
 
     /** @param array<string,mixed> $l */
@@ -116,6 +184,15 @@ class ListingRepository
         if (isset($filters['min_cash_flow']) && $filters['min_cash_flow'] !== '') {
             $where[] = 'cash_flow >= :min_cf';
             $params[':min_cf'] = (float) $filters['min_cash_flow'];
+        }
+        // "New only": first seen on/after the cutoff timestamp.
+        if (!empty($filters['new_only']) && !empty($filters['new_cutoff'])) {
+            $where[] = 'first_seen >= :new_cutoff';
+            $params[':new_cutoff'] = $filters['new_cutoff'];
+        }
+        // "Price changed only": a previous price has been recorded.
+        if (!empty($filters['changed_only'])) {
+            $where[] = 'previous_price IS NOT NULL';
         }
 
         $i = 0;
@@ -227,28 +304,60 @@ class ListingRepository
         return array_map(fn($r) => $r['business_type'], $rows);
     }
 
-    public function counts(): array
+    /**
+     * Price (and figure) history for a single listing, oldest first.
+     *
+     * @return array<int,array<string,mixed>>
+     */
+    public function history(string $source, string $externalId): array
+    {
+        $stmt = $this->pdo->prepare('SELECT price, cash_flow, gross_revenue, recorded_at FROM listing_history WHERE source = :source AND external_id = :external_id ORDER BY recorded_at ASC, id ASC');
+        $stmt->execute([':source' => $source, ':external_id' => $externalId]);
+        return $stmt->fetchAll();
+    }
+
+    /** @param string|null $newCutoff ISO timestamp; rows first seen on/after it count as new */
+    public function counts(?string $newCutoff = null): array
     {
         $total = (int) $this->pdo->query('SELECT COUNT(*) c FROM listings')->fetch()['c'];
         $sample = (int) $this->pdo->query('SELECT COUNT(*) c FROM listings WHERE is_sample = 1')->fetch()['c'];
         $latest = $this->pdo->query('SELECT MAX(scraped_at) m FROM listings')->fetch()['m'];
-        return ['total' => $total, 'sample' => $sample, 'live' => $total - $sample, 'last_scraped' => $latest];
+        $changed = (int) $this->pdo->query('SELECT COUNT(*) c FROM listings WHERE previous_price IS NOT NULL')->fetch()['c'];
+
+        $new = 0;
+        if ($newCutoff !== null) {
+            $stmt = $this->pdo->prepare('SELECT COUNT(*) c FROM listings WHERE first_seen >= :cut');
+            $stmt->execute([':cut' => $newCutoff]);
+            $new = (int) $stmt->fetch()['c'];
+        }
+
+        return [
+            'total'        => $total,
+            'sample'       => $sample,
+            'live'         => $total - $sample,
+            'new'          => $new,
+            'price_changed' => $changed,
+            'last_scraped' => $latest,
+        ];
     }
 
     public function clearSamples(): int
     {
+        $this->pdo->exec('DELETE FROM listing_history WHERE (source, external_id) IN (SELECT source, external_id FROM listings WHERE is_sample = 1)');
         return (int) $this->pdo->exec('DELETE FROM listings WHERE is_sample = 1');
     }
 
     public function clearLive(): int
     {
+        $this->pdo->exec('DELETE FROM listing_history WHERE (source, external_id) IN (SELECT source, external_id FROM listings WHERE is_sample = 0)');
         return (int) $this->pdo->exec('DELETE FROM listings WHERE is_sample = 0');
     }
 
-    /** Delete every listing. Returns the number of rows removed. */
+    /** Delete every listing and its history. Returns the number of listings removed. */
     public function clearAll(): int
     {
         $before = (int) $this->pdo->query('SELECT COUNT(*) c FROM listings')->fetch()['c'];
+        $this->pdo->exec('DELETE FROM listing_history');
         $this->pdo->exec('DELETE FROM listings');
         return $before;
     }

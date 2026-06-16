@@ -15,6 +15,9 @@ $config = [
     // Where the SQLite database lives.
     'db_path' => __DIR__ . '/data/companyfinder.sqlite',
 
+    // A listing is flagged NEW if it was first seen within this many days.
+    'days_new' => 7,
+
     // Words that, if present in a listing title or description, cause the
     // listing to be dropped entirely (case-insensitive, whole-ish match).
     'exclude_keywords' => ['restaurant', 'franchise'],

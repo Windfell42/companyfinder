@@ -16,6 +16,12 @@ acquisition opportunities, and lets you explore trends and filter the results.
   - **Cash flow** — higher cash flow scores higher
   - **Proximity** — closer to **Plano, Texas** scores higher
   The weights are adjustable live from the dashboard.
+- **Change tracking** — every import records when a listing was first/last
+  seen and writes a price-history entry on first sight and on any price change.
+  Listings first seen within the last 7 days (configurable via `days_new`) are
+  flagged **NEW**; price moves show an inline ▲/▼ indicator with the old price,
+  delta and %, and a "price history" expander per listing. Filter to **new
+  only** or **price-changed only**, and sort by **newest first**.
 - **Trends** — bar charts of listing count + average price by business type,
   and a price-distribution histogram. Both react to the active filters.
 - **Arbitrary keyword filtering** — `contains` (all terms must appear) and

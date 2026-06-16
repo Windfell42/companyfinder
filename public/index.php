@@ -54,6 +54,9 @@ $exclude = htmlspecialchars(implode(', ', $config['exclude_keywords']));
         </div>
         <label>Min cash flow <input type="number" id="f-min-cf" placeholder="0"></label>
 
+        <label class="check"><input type="checkbox" id="f-new-only"> New listings only</label>
+        <label class="check"><input type="checkbox" id="f-changed-only"> Price-changed only</label>
+
         <fieldset class="weights">
             <legend>Scoring weights</legend>
             <label>Price (lower is better) <input type="range" id="w-price" min="0" max="100" value="30"><span class="wv" id="wv-price">30</span></label>
@@ -133,6 +136,7 @@ $exclude = htmlspecialchars(implode(', ', $config['exclude_keywords']));
                     Sort:
                     <select id="sort">
                         <option value="score">Score</option>
+                        <option value="newest">Newest first</option>
                         <option value="price">Price</option>
                         <option value="cash_flow">Cash flow</option>
                         <option value="distance_mi">Distance to anchor</option>
