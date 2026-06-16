@@ -155,6 +155,32 @@ button.ghost { background: transparent; color: var(--muted); border: 1px solid v
 .import-result.err { color: var(--warn); }
 .import-result ul { margin: 6px 0 0; padding-left: 18px; color: var(--muted); }
 
+.signout {
+    align-self: center; color: var(--muted); text-decoration: none; font-size: 13px;
+    border: 1px solid var(--border); border-radius: 6px; padding: 6px 12px;
+}
+.signout:hover { color: var(--text); border-color: var(--accent); }
+
+.login-body {
+    display: flex; align-items: center; justify-content: center;
+    min-height: 100vh; padding: 20px;
+}
+.login-card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+    padding: 28px; width: 100%; max-width: 340px;
+}
+.login-card h1 { margin: 0; color: var(--accent); font-size: 22px; }
+.login-card .sub { margin: 4px 0 20px; color: var(--muted); }
+.login-card label { display: block; color: var(--muted); font-size: 13px; margin-bottom: 14px; }
+.login-card input {
+    width: 100%; margin-top: 4px; padding: 10px;
+    background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px; color: var(--text);
+}
+.login-error {
+    background: rgba(245, 166, 35, 0.12); border: 1px solid var(--warn); color: var(--warn);
+    padding: 8px 12px; border-radius: 6px; margin-bottom: 16px; font-size: 13px;
+}
+
 @media (max-width: 900px) {
     main { grid-template-columns: 1fr; }
     .charts { grid-template-columns: 1fr; }

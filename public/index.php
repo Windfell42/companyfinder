@@ -1,5 +1,7 @@
 <?php
 $config = require __DIR__ . '/../src/bootstrap.php';
+(new CompanyFinder\Auth($config['auth']))->requireWeb();
+$authEnabled = $config['auth']['enabled'] ?? false;
 $region = htmlspecialchars($config['region']);
 $anchor = htmlspecialchars($config['anchor']['label']);
 $exclude = htmlspecialchars(implode(', ', $config['exclude_keywords']));
@@ -19,6 +21,7 @@ $exclude = htmlspecialchars(implode(', ', $config['exclude_keywords']));
         <p class="sub">Business-for-sale intelligence · <strong><?= $region ?></strong> · scored against <strong><?= $anchor ?></strong></p>
     </div>
     <div class="meta" id="meta"></div>
+    <?php if ($authEnabled): ?><a class="signout" href="logout.php">Sign out</a><?php endif; ?>
 </header>
 
 <main>

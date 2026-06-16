@@ -39,8 +39,30 @@ php bin/scrape.php
 
 # 3. Serve the app
 php -S localhost:8000 -t public
-# open http://localhost:8000
+# open http://localhost:8000 and sign in (default: admin / companyfinder)
 ```
+
+## Login
+
+The dashboard and its data endpoints (`api.php`, `import.php`) sit behind a
+simple session login, enabled by default.
+
+- **Default credentials:** username `admin`, password `companyfinder`.
+- **Change them before exposing the app.** Run the helper, which writes a
+  gitignored `auth.local.php` override (your real password is hashed and never
+  committed):
+
+  ```bash
+  php bin/set-password.php              # prompts for username + password
+  php bin/set-password.php steven s3cret  # non-interactive
+  ```
+
+- To turn the gate off entirely (e.g. behind a VPN), set `auth.enabled` to
+  `false` in `config.php`.
+
+Sessions use PHP's native cookies; "Sign out" is in the dashboard header.
+When a session expires, API calls return `401` and the UI bounces to the login
+page. For an internet-facing deployment, also serve over HTTPS.
 
 ## Scraping
 
@@ -128,6 +150,7 @@ Everything tunable lives in [`config.php`](config.php):
 | `score_weights`     | Default price / cash-flow / proximity weights      |
 | `sources`           | Per-site search URLs and pagination depth          |
 | `http.proxy_template` | Rendering-proxy / scraping-API endpoint (`{url}`) |
+| `auth`              | Login gate: enabled flag, username, password hash  |
 
 ## Project layout
 
@@ -136,6 +159,8 @@ config.php              app configuration
 bin/scrape.php          CLI live scraper (direct or via proxy)
 bin/import.php          CLI offline importer for browser-saved HTML
 bin/seed.php            CLI sample-data seeder
+bin/set-password.php    CLI to set dashboard login credentials
+src/Auth.php            session login guard
 src/Database.php        SQLite connection + schema
 src/Scraper.php         multi-strategy listing scraper
 src/ListingRepository.php  storage, filtering, trend aggregation

@@ -7,7 +7,7 @@
  * for the proximity score.
  */
 
-return [
+$config = [
     // Human-readable region we are targeting. Used in the UI header and to
     // pick the per-source search URLs below.
     'region' => 'Dallas-Fort Worth Metroplex',
@@ -74,4 +74,26 @@ return [
         // Leave null to fetch directly (works for sites without bot walls).
         'proxy_template'  => null,
     ],
+
+    // Login gate for the dashboard and write endpoints.
+    //
+    // The default credentials are username "admin" / password "companyfinder".
+    // CHANGE THEM before exposing the app: run `php bin/set-password.php` to
+    // write an auth.local.php override (kept out of git) with your own
+    // username and a fresh password hash.
+    'auth' => [
+        'enabled'       => true,
+        'username'      => 'admin',
+        'password_hash' => '$2y$12$I1w/9.wL9kpTRDr/MZH.cevAxWqMYRUvxoxFZCkxjO6NTuTO3sT2a', // "companyfinder"
+        'session_name'  => 'companyfinder_session',
+    ],
 ];
+
+// Optional local secrets override (gitignored). Lets you set real credentials
+// without editing this tracked file. See bin/set-password.php.
+$override = __DIR__ . '/auth.local.php';
+if (is_file($override)) {
+    $config['auth'] = array_merge($config['auth'], require $override);
+}
+
+return $config;

@@ -15,6 +15,8 @@ use CompanyFinder\Scoring;
 
 $config = require __DIR__ . '/../src/bootstrap.php';
 
+(new CompanyFinder\Auth($config['auth']))->requireApi();
+
 header('Content-Type: application/json');
 
 $db   = new Database($config['db_path']);

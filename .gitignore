@@ -1,3 +1,4 @@
+/auth.local.php
 /data/*.sqlite
 /data/*.sqlite-journal
 /vendor/

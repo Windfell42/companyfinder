@@ -19,6 +19,8 @@ use CompanyFinder\Scraper;
 
 $config = require __DIR__ . '/../src/bootstrap.php';
 
+(new CompanyFinder\Auth($config['auth']))->requireApi();
+
 header('Content-Type: application/json');
 
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {

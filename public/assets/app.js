@@ -16,6 +16,16 @@ const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => (
     { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]
 ));
 
+// Wrap fetch so an expired session (401) bounces the user to the login page.
+async function apiFetch(url, opts) {
+    const res = await fetch(url, opts);
+    if (res.status === 401) {
+        window.location = 'login.php';
+        throw new Error('Session expired');
+    }
+    return res;
+}
+
 // --- data fetching ---------------------------------------------------------
 
 function currentQuery() {
@@ -35,7 +45,7 @@ function currentQuery() {
 }
 
 async function loadMeta() {
-    const res = await fetch('api.php?action=meta');
+    const res = await apiFetch('api.php?action=meta');
     const meta = await res.json();
     const sel = $('f-type');
     const current = sel.value;
@@ -54,7 +64,7 @@ async function loadMeta() {
 }
 
 async function loadResults() {
-    const res = await fetch('api.php?action=search&' + currentQuery());
+    const res = await apiFetch('api.php?action=search&' + currentQuery());
     const data = await res.json();
     renderTypeChart(data.trends.by_type);
     renderPriceChart(data.trends.price_histogram);
@@ -158,7 +168,7 @@ $('import-form').addEventListener('submit', async (e) => {
     out.className = 'import-result';
     out.textContent = 'Importing…';
     try {
-        const res = await fetch('import.php', { method: 'POST', body: new FormData(e.target) });
+        const res = await apiFetch('import.php', { method: 'POST', body: new FormData(e.target) });
         const data = await res.json();
         if (!res.ok || data.error) {
             out.className = 'import-result err';
