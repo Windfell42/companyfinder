@@ -16,6 +16,12 @@ acquisition opportunities, and lets you explore trends and filter the results.
   - **Cash flow** — higher cash flow scores higher
   - **Proximity** — closer to **Plano, Texas** scores higher
   The weights are adjustable live from the dashboard.
+- **Business type inference** — sources like BizBuySell don't include a
+  category, so a keyword classifier derives one (Automotive, Home Services,
+  Manufacturing, Health & Medical, …) from the title/description.
+- **Interesting tagging** — star a listing as interesting and add free-text
+  tags. This metadata is preserved across re-imports, is searchable, and has
+  an **Interesting only** filter.
 - **Change tracking** — every import records when a listing was first/last
   seen and writes a price-history entry on first sight and on any price change.
   Listings first seen within the last 7 days (configurable via `days_new`) are
