@@ -223,15 +223,27 @@ $('update-now').addEventListener('click', async () => {
         if (source) body.set('source', source);
         const res = await apiFetch('update.php', { method: 'POST', body });
         const data = await res.json();
+
+        // Always surface the run log so failures/zero-result runs are diagnosable.
+        const logCard = $('update-log-card');
+        const logEl = $('update-log');
+        if (data.log && data.log.length) {
+            logEl.textContent = data.log.join('\n');
+            logCard.hidden = false;
+            logCard.open = (data.error || !(data.found > 0));
+        } else {
+            logCard.hidden = true;
+        }
+
         if (!res.ok || data.error) {
             status.className = 'update-status err';
             status.textContent = data.error || 'Update failed.';
             return;
         }
-        status.className = 'update-status ok';
+        status.className = data.found > 0 ? 'update-status ok' : 'update-status err';
         status.textContent = data.found > 0
             ? `Updated: ${data.imported} listing(s) processed.`
-            : 'Update ran, but no listings were returned (check the Bright Data zone name).';
+            : 'Update ran, but 0 listings were returned — see the Update run log below.';
         await loadMeta();
         await loadResults();
     } catch (err) {

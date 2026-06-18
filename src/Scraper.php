@@ -66,7 +66,16 @@ class Scraper
                 break;
             }
 
+            // Diagnostics: what did we actually get back?
+            $this->log(sprintf(
+                '  fetched %d bytes (ld+json: %s, listing links: %s)',
+                strlen($html),
+                str_contains($html, 'application/ld+json') ? 'yes' : 'no',
+                preg_match('/business-(?:opportunity|for-sale)/i', $html) ? 'yes' : 'no'
+            ));
+
             $found = $this->parse($html, $source, $cfg['base']);
+            $this->log('  parsed ' . count($found) . ' listing(s) on page ' . $page);
             if (!$found) {
                 $this->log('  no listings parsed on this page, stopping');
                 break;

@@ -85,6 +85,10 @@ $asset = fn(string $f) => $f . '?v=' . (@filemtime(__DIR__ . '/' . $f) ?: time()
     </aside>
 
     <section class="content">
+        <details class="card update-log-card" id="update-log-card" hidden>
+            <summary>Update run log</summary>
+            <pre id="update-log" class="update-log"></pre>
+        </details>
         <details class="card import-card" id="import-card">
             <summary>
                 <span>Import listings from saved HTML</span>
