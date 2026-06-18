@@ -88,16 +88,23 @@ try {
     $daysNew   = (int) ($config['days_new'] ?? 7);
     $newCutoff = date('c', strtotime("-{$daysNew} days"));
 
+    // Walk up to the page count detected on the page, but never beyond the
+    // configured safety ceiling.
+    $cap       = (int) ($cfg['max_pages'] ?? 1);
+    $total     = $res['total_pages'] ?? null;
+    $effective = $total ? min($total, $cap) : $cap;
+
     echo json_encode([
-        'source'    => $source,
-        'page'      => $page,
-        'parsed'    => $res['parsed'],
-        'fetched'   => $res['fetched'],
-        'imported'  => $written,
-        'ids'       => array_values(array_map(fn($l) => $l['external_id'], $listings)),
-        'max_pages' => (int) ($cfg['max_pages'] ?? 1),
-        'counts'    => $repo->counts($newCutoff),
-        'log'       => $log,
+        'source'      => $source,
+        'page'        => $page,
+        'parsed'      => $res['parsed'],
+        'fetched'     => $res['fetched'],
+        'imported'    => $written,
+        'ids'         => array_values(array_map(fn($l) => $l['external_id'], $listings)),
+        'total_pages' => $total,
+        'max_pages'   => $effective,
+        'counts'      => $repo->counts($newCutoff),
+        'log'         => $log,
     ]);
 } catch (\Throwable $e) {
     if (!headers_sent()) {

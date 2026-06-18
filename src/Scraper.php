@@ -122,10 +122,36 @@ class Scraper
         $this->log('  parsed ' . count($found) . ' listing(s) on page ' . $page);
 
         return [
-            'fetched'  => true,
-            'parsed'   => count($found),
-            'listings' => $this->removeExcluded($found),
+            'fetched'     => true,
+            'parsed'      => count($found),
+            'listings'    => $this->removeExcluded($found),
+            'total_pages' => $this->detectTotalPages($html, $cfg),
         ];
+    }
+
+    /**
+     * Detect the highest page number linked on a results page, by matching
+     * pagination links against the source's page_url path. Returns null when no
+     * pagination is found (single page).
+     *
+     * @param array<string,mixed> $cfg
+     */
+    private function detectTotalPages(string $html, array $cfg): ?int
+    {
+        if (empty($cfg['page_url'])) {
+            return null;
+        }
+        $path = parse_url($cfg['page_url'], PHP_URL_PATH);
+        if (!$path || !str_contains($path, '{page}')) {
+            return null;
+        }
+        $parts = array_map(fn($p) => preg_quote($p, '#'), explode('{page}', $path));
+        $regex = '#' . implode('(\d+)', $parts) . '#';
+        if (!preg_match_all($regex, $html, $m)) {
+            return null;
+        }
+        $nums = array_map('intval', $m[1]);
+        return $nums ? max($nums) : null;
     }
 
     /**

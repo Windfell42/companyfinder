@@ -245,7 +245,7 @@ $('update-now').addEventListener('click', async () => {
         const seen = new Set();
         let maxPages = 10;
         for (let page = 1; page <= maxPages; page++) {
-            status.textContent = `Updating ${SOURCE_LABELS[src] || src} — page ${page}…`;
+            status.textContent = `Updating ${SOURCE_LABELS[src] || src} — page ${page} of ${maxPages}…`;
             let data;
             try {
                 data = await updatePage(src, page);

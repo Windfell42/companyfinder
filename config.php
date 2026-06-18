@@ -48,14 +48,14 @@ $config = [
             'base'       => 'https://www.bizbuysell.com',
             'search_url' => 'https://www.bizbuysell.com/texas/dallas-fort-worth-metroplex-businesses-for-sale/',
             'page_url'   => 'https://www.bizbuysell.com/texas/dallas-fort-worth-metroplex-businesses-for-sale/{page}/',
-            'max_pages'  => 10,
+            'max_pages'  => 40,
         ],
         'bizquest' => [
             'label'      => 'BizQuest',
             'base'       => 'https://www.bizquest.com',
             'search_url' => 'https://www.bizquest.com/businesses-for-sale-in-dallas-fort-worth-tx/',
             'page_url'   => 'https://www.bizquest.com/businesses-for-sale-in-dallas-fort-worth-tx/{page}/',
-            'max_pages'  => 10,
+            'max_pages'  => 40,
         ],
     ],
 
