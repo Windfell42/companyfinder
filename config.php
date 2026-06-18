@@ -102,6 +102,7 @@ $config = [
         'enabled'  => (bool) getenv('BRIGHTDATA_API_KEY'),
         'api_key'  => getenv('BRIGHTDATA_API_KEY') ?: '',
         'zone'     => getenv('BRIGHTDATA_ZONE') ?: 'web_unlocker1',
+        'country'  => getenv('BRIGHTDATA_COUNTRY') ?: 'us',
         'endpoint' => 'https://api.brightdata.com/request',
         'timeout'  => 90,
     ],

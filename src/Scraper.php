@@ -160,11 +160,13 @@ class Scraper
                 'Authorization: Bearer ' . $bd['api_key'],
                 'Content-Type: application/json',
             ],
-            CURLOPT_POSTFIELDS     => json_encode([
-                'zone'   => $bd['zone'] ?? 'web_unlocker1',
-                'url'    => $url,
-                'format' => 'raw',
-            ]),
+            CURLOPT_POSTFIELDS     => json_encode(array_filter([
+                'zone'    => $bd['zone'] ?? 'web_unlocker1',
+                'url'     => $url,
+                'format'  => 'raw',
+                // Pin to a country (Akamai often hard-blocks non-US IPs).
+                'country' => $bd['country'] ?? 'us',
+            ])),
         ]);
         $body = curl_exec($ch);
         $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
