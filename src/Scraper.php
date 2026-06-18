@@ -58,7 +58,7 @@ class Scraper
         $maxPages = (int) ($cfg['max_pages'] ?? 1);
 
         for ($page = 1; $page <= $maxPages; $page++) {
-            $url = $this->pageUrl($cfg['search_url'], $page);
+            $url = $this->pageUrl($cfg, $page);
             $this->log("  GET $url");
             $html = $this->fetch($url);
             if ($html === null) {
@@ -87,8 +87,16 @@ class Scraper
                 break;
             }
 
+            $before = count($listings);
             foreach ($this->removeExcluded($found) as $listing) {
                 $listings[$listing['external_id']] = $listing;
+            }
+            // If a page added no new listings, pagination has either run out or
+            // the page URL is being ignored (returning the same page) — stop so
+            // we don't waste fetches.
+            if (count($listings) === $before) {
+                $this->log('  no new listings on page ' . $page . ', stopping');
+                break;
             }
 
             if ($page < $maxPages) {
@@ -99,13 +107,21 @@ class Scraper
         return array_values($listings);
     }
 
-    private function pageUrl(string $base, int $page): string
+    /**
+     * Build the URL for a given page. Uses the source's `page_url` template
+     * ({page} placeholder) for pages 2+, falling back to a ?page=N query.
+     *
+     * @param array<string,mixed> $cfg
+     */
+    private function pageUrl(array $cfg, int $page): string
     {
+        $base = $cfg['search_url'];
         if ($page <= 1) {
             return $base;
         }
-        // Both sites paginate with a trailing /N/ segment or ?page=N. Use the
-        // query form which both accept.
+        if (!empty($cfg['page_url'])) {
+            return str_replace('{page}', (string) $page, $cfg['page_url']);
+        }
         $sep = str_contains($base, '?') ? '&' : '?';
         return $base . $sep . 'page=' . $page;
     }
@@ -697,6 +713,40 @@ class Scraper
     public function removeExcluded(array $listings): array
     {
         return array_values(array_filter($listings, fn($l) => !$this->isExcluded($l)));
+    }
+
+    /**
+     * Keep only listings that belong to the target region. A listing is dropped
+     * when its location is clearly in another state, or when its resolved
+     * coordinates are further than $maxMi from the anchor. Listings whose
+     * location can't be resolved are kept (the search URL is region-scoped).
+     *
+     * @param array<int,array<string,mixed>> $listings
+     * @param array{lat: float, lng: float} $anchor
+     * @return array<int,array<string,mixed>>
+     */
+    public function filterRegion(array $listings, array $anchor, float $maxMi, string $state = 'TX'): array
+    {
+        return array_values(array_filter($listings, function ($l) use ($anchor, $maxMi, $state) {
+            $loc = (string) ($l['location'] ?? '');
+
+            // Reject an explicit out-of-state location (e.g. "Atlanta, GA").
+            if (preg_match('/,\s*([A-Za-z]{2})\b\s*$/', $loc, $m)
+                && strtoupper($m[1]) !== strtoupper($state)) {
+                return false;
+            }
+
+            // Reject when known coordinates are outside the radius.
+            $lat = $l['latitude'] ?? null;
+            $lng = $l['longitude'] ?? null;
+            if ($lat !== null && $lng !== null) {
+                $d = Geo::milesBetween((float) $lat, (float) $lng, $anchor['lat'], $anchor['lng']);
+                if ($d > $maxMi) {
+                    return false;
+                }
+            }
+            return true;
+        }));
     }
 
     /** @param array<string,mixed> $listing */

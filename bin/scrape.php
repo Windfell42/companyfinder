@@ -55,7 +55,15 @@ $logger = fn(string $m) => fwrite(STDOUT, $m . "\n");
 $scraper = new Scraper($http, $config['exclude_keywords'], $logger);
 
 $listings = $scraper->scrape($sources);
-$written  = $repo->upsertMany($listings);
+
+$rf = $config['region_filter'] ?? [];
+if (!empty($rf['enabled'])) {
+    $before = count($listings);
+    $listings = $scraper->filterRegion($listings, $config['anchor'], (float) ($rf['max_radius_mi'] ?? 75), $rf['state'] ?? 'TX');
+    fwrite(STDOUT, sprintf("Region filter: kept %d of %d\n", count($listings), $before));
+}
+
+$written = $repo->upsertMany($listings);
 
 fwrite(STDOUT, "\nDone. Upserted $written listings.\n");
 

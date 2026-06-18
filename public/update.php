@@ -62,7 +62,15 @@ $repo = new ListingRepository($db->pdo(), $config['anchor']);
 $scraper = new Scraper($http, $config['exclude_keywords'], $logger);
 
 $listings = $scraper->scrape($sources);
-$written  = $repo->upsertMany($listings);
+
+$rf = $config['region_filter'] ?? [];
+if (!empty($rf['enabled'])) {
+    $before = count($listings);
+    $listings = $scraper->filterRegion($listings, $config['anchor'], (float) ($rf['max_radius_mi'] ?? 75), $rf['state'] ?? 'TX');
+    $logger(sprintf('Region filter: kept %d of %d (within %s mi of anchor)', count($listings), $before, $rf['max_radius_mi'] ?? 75));
+}
+
+$written = $repo->upsertMany($listings);
 
 $daysNew   = (int) ($config['days_new'] ?? 7);
 $newCutoff = date('c', strtotime("-{$daysNew} days"));

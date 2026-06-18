@@ -92,6 +92,10 @@ $totalImported = 0;
 foreach ($docs as $label => $html) {
     $parsed   = $scraper->parse($html, $source, $base);
     $kept     = $scraper->removeExcluded($parsed);
+    $rf = $config['region_filter'] ?? [];
+    if (!empty($rf['enabled'])) {
+        $kept = $scraper->filterRegion($kept, $config['anchor'], (float) ($rf['max_radius_mi'] ?? 75), $rf['state'] ?? 'TX');
+    }
     $written  = $repo->upsertMany($kept);
     $totalImported += $written;
     $results[] = [

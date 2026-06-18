@@ -40,19 +40,33 @@ $config = [
 
     // Per-source search entry points for the configured region. The scraper
     // walks these pages (and their pagination) looking for listing data.
+    // `page_url` is the template for pages 2+ ({page} is the page number);
+    // page 1 uses `search_url`.
     'sources' => [
         'bizbuysell' => [
-            'label'     => 'BizBuySell',
-            'base'      => 'https://www.bizbuysell.com',
-            'search_url' => 'https://www.bizbuysell.com/dallas-fort-worth-metro-area-businesses-for-sale/',
-            'max_pages' => 10,
+            'label'      => 'BizBuySell',
+            'base'       => 'https://www.bizbuysell.com',
+            'search_url' => 'https://www.bizbuysell.com/texas/dallas-fort-worth-metroplex-businesses-for-sale/',
+            'page_url'   => 'https://www.bizbuysell.com/texas/dallas-fort-worth-metroplex-businesses-for-sale/{page}/',
+            'max_pages'  => 10,
         ],
         'bizquest' => [
             'label'      => 'BizQuest',
             'base'       => 'https://www.bizquest.com',
             'search_url' => 'https://www.bizquest.com/businesses-for-sale-in-dallas-fort-worth-tx/',
+            'page_url'   => 'https://www.bizquest.com/businesses-for-sale-in-dallas-fort-worth-tx/{page}/',
             'max_pages'  => 10,
         ],
+    ],
+
+    // Keep only listings that are actually in the metroplex. Listings whose
+    // resolved location is in another state, or further than max_radius_mi from
+    // the anchor, are dropped. Listings with an unrecognized location are kept
+    // (the search URL is already region-scoped).
+    'region_filter' => [
+        'enabled'       => true,
+        'max_radius_mi' => 75,
+        'state'         => 'TX',
     ],
 
     // Polite scraping defaults.

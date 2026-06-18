@@ -53,6 +53,31 @@ class Geo
         'sachse'           => [32.9762, -96.5950],
         'murphy'           => [33.0151, -96.6131],
         'colleyville'      => [32.8807, -97.1550],
+
+        // Major non-DFW Texas cities. Included only so the region filter can
+        // recognise and exclude them by distance from the anchor.
+        'houston'          => [29.7604, -95.3698],
+        'san antonio'      => [29.4241, -98.4936],
+        'austin'           => [30.2672, -97.7431],
+        'el paso'          => [31.7619, -106.4850],
+        'corpus christi'   => [27.8006, -97.3964],
+        'lubbock'          => [33.5779, -101.8552],
+        'amarillo'         => [35.2220, -101.8313],
+        'waco'             => [31.5493, -97.1467],
+        'tyler'            => [32.3513, -95.3011],
+        'midland'          => [31.9974, -102.0779],
+        'odessa'           => [31.8457, -102.3676],
+        'abilene'          => [32.4487, -99.7331],
+        'beaumont'         => [30.0802, -94.1266],
+        'killeen'          => [31.1171, -97.7278],
+        'college station'  => [30.6280, -96.3344],
+        'laredo'           => [27.5306, -99.4803],
+        'brownsville'      => [25.9017, -97.4975],
+        'wichita falls'    => [33.9137, -98.4934],
+        'san angelo'       => [31.4638, -100.4370],
+        'longview'         => [32.5007, -94.7405],
+        'texarkana'        => [33.4251, -94.0477],
+        'galveston'        => [29.3013, -94.7977],
     ];
 
     /**
