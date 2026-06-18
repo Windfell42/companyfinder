@@ -126,8 +126,8 @@ button.ghost { background: transparent; color: var(--muted); border: 1px solid v
     border-radius: 4px; padding: 1px 6px; margin-right: 6px; letter-spacing: 0.5px;
 }
 .price-change { font-size: 12px; font-weight: 600; margin-top: 2px; }
-.price-change.down { color: var(--good); }
-.price-change.up { color: #ff6b6b; }
+.price-change.down { color: #ff6b6b; }
+.price-change.up { color: var(--good); }
 .facts .hist-link { color: var(--accent); text-decoration: none; }
 .facts .hist-link:hover { text-decoration: underline; }
 .hist-panel { margin-top: 8px; font-size: 12px; color: var(--muted); }

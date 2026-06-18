@@ -114,6 +114,7 @@ function renderListings(listings, anchor) {
         const sample = Number(l.is_sample) ? '<span class="sample-flag">SAMPLE</span>' : '';
         const newBadge = l.is_new ? '<span class="new-flag">NEW</span>' : '';
         const seen = l.first_seen ? `first seen ${new Date(l.first_seen).toLocaleDateString()}` : '';
+        const updated = l.last_seen ? `last updated ${new Date(l.last_seen).toLocaleDateString()}` : '';
 
         // Price-change indicator (down = good for a buyer).
         let priceChange = '';
@@ -142,6 +143,7 @@ function renderListings(listings, anchor) {
                     <span>${dist}</span>
                     <span>via ${esc(l.source)}</span>
                     ${seen ? `<span>${seen}</span>` : ''}
+                    ${updated ? `<span class="updated">${updated}</span>` : ''}
                     <a href="#" class="hist-link" data-source="${esc(l.source)}" data-id="${esc(l.external_id)}">price history</a>
                 </div>
                 <div class="breakdown">Score parts → price ${b.price ?? '—'} · cash flow ${b.cash_flow ?? '—'} · proximity ${b.proximity ?? '—'}</div>
