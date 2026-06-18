@@ -73,6 +73,12 @@ class Scraper
                 str_contains($html, 'application/ld+json') ? 'yes' : 'no',
                 preg_match('/business-(?:opportunity|for-sale)/i', $html) ? 'yes' : 'no'
             ));
+            // A suspiciously small body is almost always an error/interstitial,
+            // not the listings page — show it so the cause is visible.
+            if (strlen($html) < 2000) {
+                $snippet = trim(preg_replace('/\s+/', ' ', strip_tags($html)));
+                $this->log('  body snippet: ' . mb_substr($snippet, 0, 500));
+            }
 
             $found = $this->parse($html, $source, $cfg['base']);
             $this->log('  parsed ' . count($found) . ' listing(s) on page ' . $page);
