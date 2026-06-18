@@ -99,6 +99,25 @@ flagged with a **SAMPLE** badge in the UI and counted separately in the header.
 > and `robots.txt`. The scraper sends a realistic User-Agent and pauses between
 > page requests, but you are responsible for using it within the sites' terms.
 
+### "Update Now" via Bright Data
+
+The dashboard's **Update Now** button (and `php bin/scrape.php --brightdata`)
+fetches the source pages live through [Bright Data's Web Unlocker
+API](https://brightdata.com/products/web-unlocker), which clears the sites'
+anti-bot 403s without a headless browser — so it works on IONOS shared hosting.
+
+Configure your credentials **without committing them** (an API key in a repo
+gets scraped and abused). Either:
+
+- copy `brightdata.local.php.example` to `brightdata.local.php` (gitignored) and
+  fill in your `api_key` and Web Unlocker `zone`, or
+- set the `BRIGHTDATA_API_KEY` (and optionally `BRIGHTDATA_ZONE`) environment
+  variables.
+
+The `zone` must match a Web Unlocker zone you created in the Bright Data
+dashboard (default assumed: `web_unlocker1`). If Update Now reports no listings,
+check the zone name — Bright Data's error is surfaced in the run log.
+
 ## Parsing options on IONOS shared hosting
 
 It helps to split "scraping" into two steps:

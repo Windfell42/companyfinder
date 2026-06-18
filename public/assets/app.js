@@ -209,6 +209,35 @@ $('results').addEventListener('blur', (e) => {
     }
 }, true);
 
+// "Update Now": fetch live listings via Bright Data, then refresh the view.
+$('update-now').addEventListener('click', async () => {
+    const btn = $('update-now');
+    const status = $('update-status');
+    btn.disabled = true;
+    status.className = 'update-status';
+    status.textContent = 'Updating… this can take a minute.';
+    try {
+        const res = await apiFetch('update.php', { method: 'POST', body: new URLSearchParams() });
+        const data = await res.json();
+        if (!res.ok || data.error) {
+            status.className = 'update-status err';
+            status.textContent = data.error || 'Update failed.';
+            return;
+        }
+        status.className = 'update-status ok';
+        status.textContent = data.found > 0
+            ? `Updated: ${data.imported} listing(s) processed.`
+            : 'Update ran, but no listings were returned (check the Bright Data zone name).';
+        await loadMeta();
+        await loadResults();
+    } catch (err) {
+        status.className = 'update-status err';
+        status.textContent = 'Update failed: ' + err.message;
+    } finally {
+        btn.disabled = false;
+    }
+});
+
 // Price-history expander (event-delegated since rows are re-rendered).
 $('results').addEventListener('click', async (e) => {
     const link = e.target.closest('.hist-link');

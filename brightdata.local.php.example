@@ -1,0 +1,14 @@
+<?php
+/**
+ * Bright Data Web Unlocker credentials for the "Update Now" feature.
+ *
+ * Copy this file to `brightdata.local.php` (which is gitignored) and fill in
+ * your real values, OR set the BRIGHTDATA_API_KEY / BRIGHTDATA_ZONE environment
+ * variables instead. Never commit your API key.
+ */
+return [
+    'enabled' => true,
+    'api_key' => 'YOUR_BRIGHTDATA_API_KEY',
+    // Name of your Bright Data Web Unlocker zone (created in their dashboard).
+    'zone'    => 'web_unlocker1',
+];

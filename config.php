@@ -90,13 +90,30 @@ $config = [
         'password_hash' => '$2y$12$I1w/9.wL9kpTRDr/MZH.cevAxWqMYRUvxoxFZCkxjO6NTuTO3sT2a', // "companyfinder"
         'session_name'  => 'companyfinder_session',
     ],
+
+    // Bright Data Web Unlocker API, used by the dashboard's "Update Now" button
+    // and `php bin/scrape.php --brightdata` to fetch the source pages through a
+    // service that clears the sites' anti-bot 403s.
+    //
+    // The API key is a secret: do NOT put it here (this file is committed).
+    // Provide it via the BRIGHTDATA_API_KEY environment variable, or a
+    // gitignored brightdata.local.php override (see brightdata.local.php.example).
+    'brightdata' => [
+        'enabled'  => (bool) getenv('BRIGHTDATA_API_KEY'),
+        'api_key'  => getenv('BRIGHTDATA_API_KEY') ?: '',
+        'zone'     => getenv('BRIGHTDATA_ZONE') ?: 'web_unlocker1',
+        'endpoint' => 'https://api.brightdata.com/request',
+        'timeout'  => 90,
+    ],
 ];
 
-// Optional local secrets override (gitignored). Lets you set real credentials
-// without editing this tracked file. See bin/set-password.php.
-$override = __DIR__ . '/auth.local.php';
-if (is_file($override)) {
-    $config['auth'] = array_merge($config['auth'], require $override);
+// Optional local secrets overrides (gitignored). Lets you set real credentials
+// without editing this tracked file.
+foreach (['auth' => '/auth.local.php', 'brightdata' => '/brightdata.local.php'] as $key => $file) {
+    $path = __DIR__ . $file;
+    if (is_file($path)) {
+        $config[$key] = array_merge($config[$key], require $path);
+    }
 }
 
 return $config;

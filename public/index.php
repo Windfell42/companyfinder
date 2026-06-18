@@ -24,6 +24,10 @@ $asset = fn(string $f) => $f . '?v=' . (@filemtime(__DIR__ . '/' . $f) ?: time()
         <h1>CompanyFinder</h1>
         <p class="sub">Business-for-sale intelligence · <strong><?= $region ?></strong> · scored against <strong><?= $anchor ?></strong></p>
     </div>
+    <div class="header-actions">
+        <button id="update-now" class="primary" title="Fetch the latest listings live via Bright Data">⟳ Update Now</button>
+        <span id="update-status" class="update-status"></span>
+    </div>
     <div class="meta" id="meta"></div>
     <?php if ($authEnabled): ?><a class="signout" href="logout.php">Sign out</a><?php endif; ?>
 </header>

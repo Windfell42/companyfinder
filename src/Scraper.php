@@ -97,6 +97,11 @@ class Scraper
 
     private function fetch(string $url): ?string
     {
+        $bd = $this->httpConfig['brightdata'] ?? null;
+        if (is_array($bd) && !empty($bd['enabled']) && !empty($bd['api_key'])) {
+            return $this->brightDataFetch($url, $bd);
+        }
+
         $ch = curl_init($this->requestUrl($url));
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
@@ -115,6 +120,47 @@ class Scraper
 
         if ($body === false || $code >= 400) {
             $this->log('  HTTP error: ' . ($err ?: "status $code"));
+            return null;
+        }
+        return (string) $body;
+    }
+
+    /**
+     * Fetch a URL through Bright Data's Web Unlocker API, which renders the page
+     * and clears anti-bot protection, returning the raw HTML.
+     *
+     * @param array<string,mixed> $bd the brightdata config block
+     */
+    private function brightDataFetch(string $url, array $bd): ?string
+    {
+        $endpoint = $bd['endpoint'] ?? 'https://api.brightdata.com/request';
+        $this->log('  BrightData GET ' . $url);
+
+        $ch = curl_init($endpoint);
+        curl_setopt_array($ch, [
+            CURLOPT_POST           => true,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => (int) ($bd['timeout'] ?? 90),
+            CURLOPT_HTTPHEADER     => [
+                'Authorization: Bearer ' . $bd['api_key'],
+                'Content-Type: application/json',
+            ],
+            CURLOPT_POSTFIELDS     => json_encode([
+                'zone'   => $bd['zone'] ?? 'web_unlocker1',
+                'url'    => $url,
+                'format' => 'raw',
+            ]),
+        ]);
+        $body = curl_exec($ch);
+        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err  = curl_error($ch);
+        curl_close($ch);
+
+        if ($body === false || $code >= 400) {
+            // Surface Bright Data's message (e.g. a bad zone name) to the log,
+            // but never the API key.
+            $detail = $err ?: ('status ' . $code . ' ' . substr((string) $body, 0, 200));
+            $this->log('  BrightData error: ' . $detail);
             return null;
         }
         return (string) $body;

@@ -18,7 +18,7 @@ use CompanyFinder\Scraper;
 
 $config = require __DIR__ . '/../src/bootstrap.php';
 
-$opts = getopt('', ['source::', 'clear-samples', 'clear-all']);
+$opts = getopt('', ['source::', 'clear-samples', 'clear-all', 'brightdata']);
 
 $db   = new Database($config['db_path']);
 $repo = new ListingRepository($db->pdo(), $config['anchor']);
@@ -41,8 +41,18 @@ if (!empty($opts['source'])) {
     $sources = [$key => $sources[$key]];
 }
 
+$http = $config['http'];
+if (isset($opts['brightdata'])) {
+    if (empty($config['brightdata']['api_key'])) {
+        fwrite(STDERR, "No Bright Data API key configured (set BRIGHTDATA_API_KEY or brightdata.local.php).\n");
+        exit(1);
+    }
+    $http['brightdata'] = $config['brightdata'];
+    fwrite(STDOUT, "Fetching via Bright Data Web Unlocker.\n");
+}
+
 $logger = fn(string $m) => fwrite(STDOUT, $m . "\n");
-$scraper = new Scraper($config['http'], $config['exclude_keywords'], $logger);
+$scraper = new Scraper($http, $config['exclude_keywords'], $logger);
 
 $listings = $scraper->scrape($sources);
 $written  = $repo->upsertMany($listings);

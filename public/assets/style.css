@@ -32,6 +32,11 @@ body {
 }
 .app-header h1 { margin: 0; font-size: 20px; color: var(--accent); }
 .app-header .sub { margin: 4px 0 0; color: var(--muted); }
+.header-actions { display: flex; align-items: center; gap: 12px; }
+.header-actions button { width: auto; margin: 0; padding: 9px 16px; }
+.update-status { font-size: 12px; color: var(--muted); max-width: 260px; }
+.update-status.ok { color: var(--good); }
+.update-status.err { color: var(--warn); }
 .meta { color: var(--muted); text-align: right; font-size: 13px; line-height: 1.5; }
 .meta .pill { display:inline-block; background: var(--panel-2); border:1px solid var(--border); border-radius: 999px; padding: 2px 10px; margin-left: 6px; }
 
