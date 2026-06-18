@@ -137,6 +137,7 @@ function renderListings(listings, anchor) {
             </div>
             <div>
                 <div class="title">${star}${newBadge}<a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.title)}</a> ${sample}</div>
+                <br>
                 <div class="facts">
                     <span class="tag">${esc(l.business_type || 'Uncategorized')}</span>
                     <span>${esc(l.location || 'DFW')}</span>
