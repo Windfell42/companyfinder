@@ -107,7 +107,7 @@ button.ghost { background: transparent; color: var(--muted); border: 1px solid v
     border: 2px solid var(--good); font-weight: 700; font-size: 18px;
 }
 .score-badge small { font-size: 9px; font-weight: 500; color: var(--muted); }
-.listing .title { font-size: 15px; font-weight: 600; }
+.listing .title { font-size: 15px; font-weight: 600; margin-bottom: 8px; }
 .listing .title a { color: var(--text); text-decoration: none; }
 .listing .title a:hover { color: var(--accent); }
 .listing .facts { color: var(--muted); font-size: 12px; margin-top: 4px; display: flex; flex-wrap: wrap; gap: 10px; }
