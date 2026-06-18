@@ -36,7 +36,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Sign in — CompanyFinder</title>
-    <link rel="stylesheet" href="assets/style.css">
+    <link rel="stylesheet" href="assets/style.css?v=<?= @filemtime(__DIR__ . '/assets/style.css') ?: time() ?>">
 </head>
 <body class="login-body">
     <form class="login-card" method="post" action="login.php?next=<?= htmlspecialchars(rawurlencode($next)) ?>">

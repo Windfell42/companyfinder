@@ -5,6 +5,10 @@ $authEnabled = $config['auth']['enabled'] ?? false;
 $region = htmlspecialchars($config['region']);
 $anchor = htmlspecialchars($config['anchor']['label']);
 $exclude = htmlspecialchars(implode(', ', $config['exclude_keywords']));
+
+// Cache-busting: append each asset's last-modified time so browsers always
+// load the current version instead of a stale cached copy.
+$asset = fn(string $f) => $f . '?v=' . (@filemtime(__DIR__ . '/' . $f) ?: time());
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -12,7 +16,7 @@ $exclude = htmlspecialchars(implode(', ', $config['exclude_keywords']));
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>CompanyFinder — <?= $region ?></title>
-    <link rel="stylesheet" href="assets/style.css">
+    <link rel="stylesheet" href="<?= $asset('assets/style.css') ?>">
 </head>
 <body>
 <header class="app-header">
@@ -149,6 +153,6 @@ $exclude = htmlspecialchars(implode(', ', $config['exclude_keywords']));
     </section>
 </main>
 
-<script src="assets/app.js"></script>
+<script src="<?= $asset('assets/app.js') ?>"></script>
 </body>
 </html>
