@@ -58,37 +58,18 @@ class Scraper
         $maxPages = (int) ($cfg['max_pages'] ?? 1);
 
         for ($page = 1; $page <= $maxPages; $page++) {
-            $url = $this->pageUrl($cfg, $page);
-            $this->log("  GET $url");
-            $html = $this->fetch($url);
-            if ($html === null) {
-                $this->log('  request failed, stopping pagination for this source');
+            $res = $this->fetchPageListings($source, $cfg, $page);
+            if (!$res['fetched']) {
+                $this->log('  stopping pagination for this source');
                 break;
             }
-
-            // Diagnostics: what did we actually get back?
-            $this->log(sprintf(
-                '  fetched %d bytes (ld+json: %s, listing links: %s)',
-                strlen($html),
-                str_contains($html, 'application/ld+json') ? 'yes' : 'no',
-                preg_match('/business-(?:opportunity|for-sale)/i', $html) ? 'yes' : 'no'
-            ));
-            // A suspiciously small body is almost always an error/interstitial,
-            // not the listings page — show it so the cause is visible.
-            if (strlen($html) < 2000) {
-                $snippet = trim(preg_replace('/\s+/', ' ', strip_tags($html)));
-                $this->log('  body snippet: ' . mb_substr($snippet, 0, 500));
-            }
-
-            $found = $this->parse($html, $source, $cfg['base']);
-            $this->log('  parsed ' . count($found) . ' listing(s) on page ' . $page);
-            if (!$found) {
+            if ($res['parsed'] === 0) {
                 $this->log('  no listings parsed on this page, stopping');
                 break;
             }
 
             $before = count($listings);
-            foreach ($this->removeExcluded($found) as $listing) {
+            foreach ($res['listings'] as $listing) {
                 $listings[$listing['external_id']] = $listing;
             }
             // If a page added no new listings, pagination has either run out or
@@ -105,6 +86,46 @@ class Scraper
         }
 
         return array_values($listings);
+    }
+
+    /**
+     * Fetch and parse a single results page for one source, returning the kept
+     * (non-excluded) listings plus diagnostics. Public so the dashboard can
+     * paginate one page per HTTP request and avoid gateway timeouts.
+     *
+     * @param array<string,mixed> $cfg
+     * @return array{fetched: bool, parsed: int, listings: array<int,array<string,mixed>>}
+     */
+    public function fetchPageListings(string $source, array $cfg, int $page): array
+    {
+        $url = $this->pageUrl($cfg, $page);
+        $this->log("  GET $url");
+        $html = $this->fetch($url);
+        if ($html === null) {
+            $this->log('  request failed');
+            return ['fetched' => false, 'parsed' => 0, 'listings' => []];
+        }
+
+        // Diagnostics: what did we actually get back?
+        $this->log(sprintf(
+            '  fetched %d bytes (ld+json: %s, listing links: %s)',
+            strlen($html),
+            str_contains($html, 'application/ld+json') ? 'yes' : 'no',
+            preg_match('/business-(?:opportunity|for-sale)/i', $html) ? 'yes' : 'no'
+        ));
+        // A suspiciously small body is almost always an error/interstitial.
+        if (strlen($html) < 2000) {
+            $this->log('  body snippet: ' . mb_substr(trim(preg_replace('/\s+/', ' ', strip_tags($html))), 0, 500));
+        }
+
+        $found = $this->parse($html, $source, $cfg['base']);
+        $this->log('  parsed ' . count($found) . ' listing(s) on page ' . $page);
+
+        return [
+            'fetched'  => true,
+            'parsed'   => count($found),
+            'listings' => $this->removeExcluded($found),
+        ];
     }
 
     /**

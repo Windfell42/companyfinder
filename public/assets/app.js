@@ -209,49 +209,85 @@ $('results').addEventListener('blur', (e) => {
     }
 }, true);
 
-// "Update Now": fetch live listings via Bright Data, then refresh the view.
+// "Update Now": fetch live listings via Bright Data, one page per request so
+// the browser drives pagination and no single request can time out.
+const SOURCE_LABELS = { bizbuysell: 'BizBuySell', bizquest: 'BizQuest' };
+
+// Fetch one page; reads as text first so a non-JSON gateway/error page is
+// captured as a readable message instead of throwing "unexpected character".
+async function updatePage(source, page) {
+    const body = new URLSearchParams({ source, page: String(page) });
+    const res = await apiFetch('update.php', { method: 'POST', body });
+    const text = await res.text();
+    try {
+        return JSON.parse(text);
+    } catch (e) {
+        return { error: 'Server returned a non-JSON response (likely a timeout). First 200 chars: ' + text.slice(0, 200) };
+    }
+}
+
 $('update-now').addEventListener('click', async () => {
     const btn = $('update-now');
     const status = $('update-status');
-    const source = $('update-source').value;
+    const chosen = $('update-source').value;
+    const sources = chosen ? [chosen] : ['bizbuysell', 'bizquest'];
+
+    const logCard = $('update-log-card');
+    const logEl = $('update-log');
+    const allLog = [];
+    let totalNew = 0;
+    let hadError = false;
+
     btn.disabled = true;
     status.className = 'update-status';
-    const label = source ? (source === 'bizbuysell' ? 'BizBuySell' : 'BizQuest') : 'all sources';
-    status.textContent = `Updating ${label}… this can take a minute.`;
-    try {
-        const body = new URLSearchParams();
-        if (source) body.set('source', source);
-        const res = await apiFetch('update.php', { method: 'POST', body });
-        const data = await res.json();
 
-        // Always surface the run log so failures/zero-result runs are diagnosable.
-        const logCard = $('update-log-card');
-        const logEl = $('update-log');
-        if (data.log && data.log.length) {
-            logEl.textContent = data.log.join('\n');
-            logCard.hidden = false;
-            logCard.open = (data.error || !(data.found > 0));
-        } else {
-            logCard.hidden = true;
+    for (const src of sources) {
+        const seen = new Set();
+        let maxPages = 10;
+        for (let page = 1; page <= maxPages; page++) {
+            status.textContent = `Updating ${SOURCE_LABELS[src] || src} — page ${page}…`;
+            let data;
+            try {
+                data = await updatePage(src, page);
+            } catch (err) {
+                allLog.push(`[${src} p${page}] request failed: ${err.message}`);
+                hadError = true;
+                break;
+            }
+            if (data.log && data.log.length) allLog.push(...data.log);
+            if (data.error) {
+                allLog.push(`[${src} p${page}] ${data.error}`);
+                hadError = true;
+                break;
+            }
+            maxPages = data.max_pages || maxPages;
+            const ids = data.ids || [];
+            const fresh = ids.filter((id) => !seen.has(id));
+            fresh.forEach((id) => seen.add(id));
+            totalNew += fresh.length;
+            // Stop this source when a page yields nothing new (run-out or an
+            // ignored page URL returning the same page).
+            if ((data.parsed || 0) === 0 || fresh.length === 0) break;
         }
-
-        if (!res.ok || data.error) {
-            status.className = 'update-status err';
-            status.textContent = data.error || 'Update failed.';
-            return;
-        }
-        status.className = data.found > 0 ? 'update-status ok' : 'update-status err';
-        status.textContent = data.found > 0
-            ? `Updated: ${data.imported} listing(s) processed.`
-            : 'Update ran, but 0 listings were returned — see the Update run log below.';
-        await loadMeta();
-        await loadResults();
-    } catch (err) {
-        status.className = 'update-status err';
-        status.textContent = 'Update failed: ' + err.message;
-    } finally {
-        btn.disabled = false;
     }
+
+    // Surface the combined run log.
+    if (allLog.length) {
+        logEl.textContent = allLog.join('\n');
+        logCard.hidden = false;
+        logCard.open = hadError;
+    } else {
+        logCard.hidden = true;
+    }
+
+    status.className = hadError ? 'update-status err' : 'update-status ok';
+    status.textContent = hadError
+        ? 'Update finished with errors — see the run log below.'
+        : `Update complete: ${totalNew} listing(s) fetched.`;
+
+    await loadMeta();
+    await loadResults();
+    btn.disabled = false;
 });
 
 // Price-history expander (event-delegated since rows are re-rendered).
