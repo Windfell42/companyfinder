@@ -25,6 +25,11 @@ $asset = fn(string $f) => $f . '?v=' . (@filemtime(__DIR__ . '/' . $f) ?: time()
         <p class="sub">Business-for-sale intelligence · <strong><?= $region ?></strong> · scored against <strong><?= $anchor ?></strong></p>
     </div>
     <div class="header-actions">
+        <select id="update-source" title="Which source to update">
+            <option value="">All sources</option>
+            <option value="bizbuysell">BizBuySell</option>
+            <option value="bizquest">BizQuest</option>
+        </select>
         <button id="update-now" class="primary" title="Fetch the latest listings live via Bright Data">⟳ Update Now</button>
         <span id="update-status" class="update-status"></span>
     </div>

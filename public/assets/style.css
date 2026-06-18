@@ -32,8 +32,12 @@ body {
 }
 .app-header h1 { margin: 0; font-size: 20px; color: var(--accent); }
 .app-header .sub { margin: 4px 0 0; color: var(--muted); }
-.header-actions { display: flex; align-items: center; gap: 12px; }
+.header-actions { display: flex; align-items: center; gap: 8px; }
 .header-actions button { width: auto; margin: 0; padding: 9px 16px; }
+.header-actions select {
+    padding: 9px 10px; background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px;
+}
 .update-status { font-size: 12px; color: var(--muted); max-width: 260px; }
 .update-status.ok { color: var(--good); }
 .update-status.err { color: var(--warn); }

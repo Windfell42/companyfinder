@@ -213,11 +213,15 @@ $('results').addEventListener('blur', (e) => {
 $('update-now').addEventListener('click', async () => {
     const btn = $('update-now');
     const status = $('update-status');
+    const source = $('update-source').value;
     btn.disabled = true;
     status.className = 'update-status';
-    status.textContent = 'Updating… this can take a minute.';
+    const label = source ? (source === 'bizbuysell' ? 'BizBuySell' : 'BizQuest') : 'all sources';
+    status.textContent = `Updating ${label}… this can take a minute.`;
     try {
-        const res = await apiFetch('update.php', { method: 'POST', body: new URLSearchParams() });
+        const body = new URLSearchParams();
+        if (source) body.set('source', source);
+        const res = await apiFetch('update.php', { method: 'POST', body });
         const data = await res.json();
         if (!res.ok || data.error) {
             status.className = 'update-status err';
