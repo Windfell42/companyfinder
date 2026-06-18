@@ -175,8 +175,9 @@ class Scraper
      */
     private function mergeListing(array $a, array $b): array
     {
-        // Prefer the longer, more descriptive title.
-        if (strlen((string) ($b['title'] ?? '')) > strlen((string) ($a['title'] ?? ''))) {
+        // Keep the existing title (JSON-LD is processed first and is the clean,
+        // authoritative business name); only fill it in if it was missing.
+        if (empty($a['title']) && !empty($b['title'])) {
             $a['title'] = $b['title'];
         }
         foreach (['url', 'description', 'location'] as $k) {
@@ -421,7 +422,9 @@ class Scraper
     {
         $doc = new DOMDocument();
         libxml_use_internal_errors(true);
-        $doc->loadHTML($html);
+        // Hint UTF-8 so accented characters / en-dashes aren't mangled (e.g.
+        // "–" turning into "â€“"). Without this libxml assumes Latin-1.
+        $doc->loadHTML('<?xml encoding="utf-8" ?>' . $html);
         libxml_clear_errors();
         $xp = new DOMXPath($doc);
 
@@ -434,26 +437,26 @@ class Scraper
             return [];
         }
 
-        $out = [];
         $seen = [];
         foreach ($nodes as $a) {
-            $title = trim(preg_replace('/\s+/', ' ', $a->textContent));
-            $href  = $a->getAttribute('href');
-            if ($title === '' || strlen($title) < 6 || $href === '') {
+            $href = $a->getAttribute('href');
+            if ($href === '') {
                 continue;
             }
-
-            // A card usually has several links (image, title, "details"); key
-            // on the listing id so we only emit each card once, and prefer the
-            // longest anchor text as the title.
+            // One card has several links (image, title, "details"); emit each
+            // listing id once.
             $id = $this->idFromUrl($this->absoluteUrl($href, $base));
-            if (isset($seen[$id]) && strlen($title) <= strlen($seen[$id]['title'])) {
+            if (isset($seen[$id])) {
                 continue;
             }
 
-            // Climb to the nearest ancestor that contains pricing text so we
-            // can read the figures that sit alongside the link.
-            $cardText = $this->cardText($a);
+            $card  = $this->cardContainer($a);
+            $title = $this->extractTitle($xp, $card, $a);
+            if ($title === '' || mb_strlen($title) < 4) {
+                continue;
+            }
+
+            $cardText = trim(preg_replace('/\s+/', ' ', $card?->textContent ?? $a->textContent));
 
             $listing = $this->normalizeListing([
                 'source'        => $source,
@@ -474,23 +477,67 @@ class Scraper
     }
 
     /**
-     * Text of the nearest ancestor of $node that looks like a listing card
-     * (contains a dollar figure), with whitespace collapsed. Falls back to the
-     * immediate parent so we always return something to scan.
+     * The business name for a card. Prefer a heading element (the actual title
+     * markup) over the anchor's full text, which on BizBuySell wraps the entire
+     * card and would otherwise pull in price/description text.
      */
-    private function cardText(\DOMNode $node): string
+    private function extractTitle(DOMXPath $xp, ?\DOMNode $card, \DOMNode $anchor): string
     {
-        $best = $node->parentNode;
+        if ($card !== null) {
+            $heads = $xp->query('.//h1|.//h2|.//h3|.//h4', $card);
+            if ($heads !== false) {
+                foreach ($heads as $h) {
+                    $t = $this->cleanTitle($h->textContent);
+                    if ($t !== '' && mb_strlen($t) >= 4) {
+                        return $t;
+                    }
+                }
+            }
+            // Fall back to an element whose class hints it is the title/name.
+            $named = $xp->query(".//*[contains(translate(@class,'TITLENAME','titlename'),'title') or contains(translate(@class,'TITLENAME','titlename'),'name')]", $card);
+            if ($named !== false) {
+                foreach ($named as $n) {
+                    $t = $this->cleanTitle($n->textContent);
+                    if ($t !== '' && mb_strlen($t) >= 4) {
+                        return $t;
+                    }
+                }
+            }
+        }
+        return $this->cleanTitle($anchor->textContent);
+    }
+
+    /**
+     * Tidy a candidate title: collapse whitespace and cut off anything from the
+     * first financial label / price onward (a guard for when the only text we
+     * have is a whole-card blob).
+     */
+    private function cleanTitle(string $title): string
+    {
+        $title = trim(preg_replace('/\s+/', ' ', $title));
+        $parts = preg_split('/\s*(?:Asking Price|Cash Flow|Sales Revenue|Gross Revenue|Gross Income|Established|\$)/i', $title);
+        $title = trim($parts[0] ?? $title);
+        if (mb_strlen($title) > 120) {
+            $title = mb_substr($title, 0, 117) . '…';
+        }
+        return $title;
+    }
+
+    /**
+     * The nearest ancestor of $node that looks like a listing card (contains a
+     * dollar figure). Falls back to the immediate parent.
+     */
+    private function cardContainer(\DOMNode $node): ?\DOMNode
+    {
         $cur = $node->parentNode;
         for ($i = 0; $i < 6 && $cur !== null; $i++) {
             $text = $cur->textContent ?? '';
             if (str_contains($text, '$') && strlen($text) < 2000) {
-                $best = $cur;
-                break;
+                return $cur;
             }
             $cur = $cur->parentNode;
         }
-        return trim(preg_replace('/\s+/', ' ', $best?->textContent ?? ''));
+        return $node->parentNode;
     }
 
     /**
