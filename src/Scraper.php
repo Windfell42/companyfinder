@@ -398,6 +398,12 @@ class Scraper
 
         $location = $this->extractLocation($item);
 
+        // BizBuySell repeats the figures in the description text
+        // ("Asking Price: ... Cash Flow: ... Sales Revenue: ..."), which the
+        // structured data omits — pull cash flow / revenue from there.
+        $cashFlow = $this->extractLabeledMoney((string) $desc, ['cash flow', 'sde', "seller's discretionary", 'net profit', 'net income']);
+        $gross    = $this->extractLabeledMoney((string) $desc, ['gross revenue', 'sales revenue', 'gross income', 'gross sales', 'revenue', 'sales']);
+
         return $this->normalizeListing([
             'source'        => $source,
             'title'         => (string) $title,
@@ -406,8 +412,8 @@ class Scraper
             'business_type' => (string) ($item['category'] ?? ''),
             'location'      => $location,
             'price'         => $price,
-            'cash_flow'     => null,
-            'gross_revenue' => null,
+            'cash_flow'     => $cashFlow,
+            'gross_revenue' => $gross,
         ]);
     }
 
@@ -456,7 +462,9 @@ class Scraper
         if (!is_string($v) || trim($v) === '') {
             return null;
         }
-        if (!preg_match('/([\d][\d,]*(?:\.\d+)?)\s*(million|mil|thousand|m|k)?/i', $v, $m)) {
+        // The unit suffix must end on a word boundary, so the "M" in "$57,550
+        // Mission..." is NOT read as "millions".
+        if (!preg_match('/([\d][\d,]*(?:\.\d+)?)\s*(million|mil|thousand|m|k)?\b/i', $v, $m)) {
             return null;
         }
         $num = (float) str_replace(',', '', $m[1]);
@@ -682,7 +690,7 @@ class Scraper
     private function extractLabeledMoney(string $text, array $labels): ?float
     {
         foreach ($labels as $label) {
-            $re = '/' . preg_quote($label, '/') . '\s*[:\-]?\s*\$?\s*([\d][\d,]*(?:\.\d+)?\s*(?:million|mil|thousand|m|k)?)/i';
+            $re = '/' . preg_quote($label, '/') . '\s*[:\-]?\s*\$?\s*([\d][\d,]*(?:\.\d+)?\s*(?:million|mil|thousand|m|k)?\b)/i';
             if (preg_match($re, $text, $m)) {
                 $val = $this->parseMoney($m[1]);
                 if ($val !== null) {
@@ -696,7 +704,7 @@ class Scraper
     /** Largest dollar figure in a blob of text — a decent guess for asking price. */
     private function largestMoney(string $text): ?float
     {
-        if (!preg_match_all('/\$\s*([\d][\d,]*(?:\.\d+)?\s*(?:million|mil|thousand|m|k)?)/i', $text, $m)) {
+        if (!preg_match_all('/\$\s*([\d][\d,]*(?:\.\d+)?\s*(?:million|mil|thousand|m|k)?\b)/i', $text, $m)) {
             return null;
         }
         $values = array_filter(array_map(fn($s) => $this->parseMoney($s), $m[1]));
