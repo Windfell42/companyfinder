@@ -226,6 +226,10 @@ async function updatePage(source, page) {
     }
 }
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// Config issues (no key, bad source) are fatal; everything else is worth a retry.
+const isFatal = (msg) => /not configured|API key|Unknown or missing source/i.test(msg || '');
+
 $('update-now').addEventListener('click', async () => {
     const btn = $('update-now');
     const status = $('update-status');
@@ -236,38 +240,61 @@ $('update-now').addEventListener('click', async () => {
     const logEl = $('update-log');
     const allLog = [];
     let totalNew = 0;
+    let totalImported = 0;
     let hadError = false;
 
     btn.disabled = true;
     status.className = 'update-status';
 
+    outer:
     for (const src of sources) {
         const seen = new Set();
-        let maxPages = 10;
+        let maxPages = 40;
+        let consecutiveEmpty = 0;
+
         for (let page = 1; page <= maxPages; page++) {
             status.textContent = `Updating ${SOURCE_LABELS[src] || src} — page ${page} of ${maxPages}…`;
-            let data;
-            try {
-                data = await updatePage(src, page);
-            } catch (err) {
-                allLog.push(`[${src} p${page}] request failed: ${err.message}`);
-                hadError = true;
-                break;
+
+            // Fetch with a couple of retries for transient failures.
+            let data = null;
+            for (let attempt = 1; attempt <= 3; attempt++) {
+                try {
+                    data = await updatePage(src, page);
+                } catch (err) {
+                    data = { error: 'request failed: ' + err.message };
+                }
+                if (data.error && isFatal(data.error)) break;          // don't retry config errors
+                if (!data.error && data.parsed > 0) break;             // got a good page
+                if (attempt < 3) await sleep(2000);                    // transient — back off and retry
             }
+
             if (data.log && data.log.length) allLog.push(...data.log);
+
             if (data.error) {
                 allLog.push(`[${src} p${page}] ${data.error}`);
                 hadError = true;
+                if (isFatal(data.error)) break outer;                  // stop everything
+                consecutiveEmpty++;                                    // transient: treat like an empty page
+            } else {
+                maxPages = data.max_pages || maxPages;
+                totalImported += data.imported || 0;
+                const ids = data.ids || [];
+                const fresh = ids.filter((id) => !seen.has(id));
+                fresh.forEach((id) => seen.add(id));
+                totalNew += fresh.length;
+
+                // Advance based on raw listings present, NOT on how many
+                // survived filtering (a page can legitimately keep 0).
+                consecutiveEmpty = (data.parsed || 0) === 0 ? consecutiveEmpty + 1 : 0;
+            }
+
+            // Stop this source only after two consecutive empty/failed pages
+            // (real end of results, or a persistent problem).
+            if (consecutiveEmpty >= 2) {
+                allLog.push(`[${src}] stopping after ${consecutiveEmpty} empty pages (page ${page} of ${maxPages})`);
                 break;
             }
-            maxPages = data.max_pages || maxPages;
-            const ids = data.ids || [];
-            const fresh = ids.filter((id) => !seen.has(id));
-            fresh.forEach((id) => seen.add(id));
-            totalNew += fresh.length;
-            // Stop this source when a page yields nothing new (run-out or an
-            // ignored page URL returning the same page).
-            if ((data.parsed || 0) === 0 || fresh.length === 0) break;
+            await sleep(400); // gentle pacing between pages
         }
     }
 
@@ -282,8 +309,8 @@ $('update-now').addEventListener('click', async () => {
 
     status.className = hadError ? 'update-status err' : 'update-status ok';
     status.textContent = hadError
-        ? 'Update finished with errors — see the run log below.'
-        : `Update complete: ${totalNew} listing(s) fetched.`;
+        ? `Finished with some errors — ${totalNew} new listing(s); see the run log.`
+        : `Update complete: ${totalNew} new listing(s) fetched.`;
 
     await loadMeta();
     await loadResults();
