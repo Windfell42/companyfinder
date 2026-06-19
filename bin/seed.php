@@ -87,13 +87,16 @@ $n = $repo->upsertMany($listings);
 fwrite(STDOUT, "Seeded $n sample listings.\n");
 
 // Make the change-tracking demo realistic: backdate most rows so they look
-// "established", leave the last few first-seen today (they show as NEW), and
-// simulate a price drop on a couple so price-change indicators appear.
+// "established" (first seen 30 days ago, but seen again today, so they are NOT
+// flagged NEW), leave the last few first-seen today and never re-seen (they
+// show as NEW), and simulate a price drop on a couple so price-change
+// indicators appear.
 $pdo = $db->pdo();
 $old = date('c', strtotime('-30 days'));
 
-// Backdate everything except the final 5 sample rows.
-$pdo->exec("UPDATE listings SET first_seen = '$old', last_seen = '$old'
+// Backdate first_seen on everything except the final 5 sample rows, but set
+// last_seen to today (first_seen != last_seen => not NEW).
+$pdo->exec("UPDATE listings SET first_seen = '$old', last_seen = '$now'
             WHERE is_sample = 1 AND external_id NOT IN
             (SELECT external_id FROM listings WHERE is_sample = 1 ORDER BY external_id DESC LIMIT 5)");
 

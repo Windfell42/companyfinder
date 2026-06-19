@@ -78,7 +78,12 @@ $rows    = $scoring->apply($rows);
 
 // Annotate each row with change-tracking info for the UI.
 foreach ($rows as &$row) {
-    $row['is_new'] = isset($row['first_seen']) && $row['first_seen'] !== null
+    // NEW = seen for the first time and never re-seen since (first_seen still
+    // equals last_seen), and recent. Once an update re-sees a listing,
+    // last_seen advances and the NEW tag clears.
+    $row['is_new'] = isset($row['first_seen'], $row['last_seen'])
+        && $row['first_seen'] !== null
+        && $row['first_seen'] === $row['last_seen']
         && $row['first_seen'] >= $newCutoff;
     if (isset($row['previous_price']) && $row['previous_price'] !== null && $row['price'] !== null) {
         $delta = (float) $row['price'] - (float) $row['previous_price'];

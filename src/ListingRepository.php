@@ -185,9 +185,9 @@ class ListingRepository
             $where[] = 'cash_flow >= :min_cf';
             $params[':min_cf'] = (float) $filters['min_cash_flow'];
         }
-        // "New only": first seen on/after the cutoff timestamp.
+        // "New only": first seen on/after the cutoff and never re-seen since.
         if (!empty($filters['new_only']) && !empty($filters['new_cutoff'])) {
-            $where[] = 'first_seen >= :new_cutoff';
+            $where[] = 'first_seen = last_seen AND first_seen >= :new_cutoff';
             $params[':new_cutoff'] = $filters['new_cutoff'];
         }
         // "Price changed only": a previous price has been recorded.
@@ -375,7 +375,7 @@ class ListingRepository
 
         $new = 0;
         if ($newCutoff !== null) {
-            $stmt = $this->pdo->prepare('SELECT COUNT(*) c FROM listings WHERE first_seen >= :cut');
+            $stmt = $this->pdo->prepare('SELECT COUNT(*) c FROM listings WHERE first_seen = last_seen AND first_seen >= :cut');
             $stmt->execute([':cut' => $newCutoff]);
             $new = (int) $stmt->fetch()['c'];
         }
