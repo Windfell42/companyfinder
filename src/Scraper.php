@@ -613,7 +613,8 @@ class Scraper
             $heads = $xp->query('.//h1|.//h2|.//h3|.//h4', $card);
             if ($heads !== false) {
                 foreach ($heads as $h) {
-                    $t = $this->cleanTitle($h->textContent);
+                    // A heading is already just the title — only tidy it.
+                    $t = $this->tidyTitle($h->textContent);
                     if ($t !== '' && mb_strlen($t) >= 4) {
                         return $t;
                     }
@@ -623,30 +624,38 @@ class Scraper
             $named = $xp->query(".//*[contains(translate(@class,'TITLENAME','titlename'),'title') or contains(translate(@class,'TITLENAME','titlename'),'name')]", $card);
             if ($named !== false) {
                 foreach ($named as $n) {
-                    $t = $this->cleanTitle($n->textContent);
+                    $t = $this->tidyTitle($n->textContent);
                     if ($t !== '' && mb_strlen($t) >= 4) {
                         return $t;
                     }
                 }
             }
         }
-        return $this->cleanTitle($anchor->textContent);
+        // Last resort: the anchor text, which may be the whole card — cut it
+        // back to the part before the financial figures.
+        return $this->cleanBlobTitle($anchor->textContent);
+    }
+
+    /** Collapse whitespace and cap length; used for real title markup. */
+    private function tidyTitle(string $title): string
+    {
+        $title = trim(preg_replace('/\s+/', ' ', $title));
+        if (mb_strlen($title) > 150) {
+            $title = rtrim(mb_substr($title, 0, 149)) . '…';
+        }
+        return $title;
     }
 
     /**
-     * Tidy a candidate title: collapse whitespace and cut off anything from the
-     * first financial label / price onward (a guard for when the only text we
-     * have is a whole-card blob).
+     * For whole-card text blobs only: keep the part before the first financial
+     * label / price, then tidy. (Note: "Established" is intentionally NOT a cut
+     * marker — it legitimately starts many real titles.)
      */
-    private function cleanTitle(string $title): string
+    private function cleanBlobTitle(string $title): string
     {
         $title = trim(preg_replace('/\s+/', ' ', $title));
-        $parts = preg_split('/\s*(?:Asking Price|Cash Flow|Sales Revenue|Gross Revenue|Gross Income|Established|\$)/i', $title);
-        $title = trim($parts[0] ?? $title);
-        if (mb_strlen($title) > 120) {
-            $title = mb_substr($title, 0, 117) . '…';
-        }
-        return $title;
+        $parts = preg_split('/\s*(?:Asking Price|Cash Flow|Sales Revenue|Gross Revenue|Gross Income|\$)/i', $title);
+        return $this->tidyTitle($parts[0] ?? $title);
     }
 
     /**
