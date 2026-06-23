@@ -53,8 +53,8 @@ $config = [
         'bizquest' => [
             'label'      => 'BizQuest',
             'base'       => 'https://www.bizquest.com',
-            'search_url' => 'https://www.bizquest.com/businesses-for-sale-in-dallas-fort-worth-tx/',
-            'page_url'   => 'https://www.bizquest.com/businesses-for-sale-in-dallas-fort-worth-tx/{page}/',
+            'search_url' => 'https://www.bizquest.com/businesses-for-sale-in-dallas-fort-worth-metroplex-tx/',
+            'page_url'   => 'https://www.bizquest.com/businesses-for-sale-in-dallas-fort-worth-metroplex-tx/page-{page}/',
             'max_pages'  => 40,
         ],
     ],
