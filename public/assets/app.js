@@ -34,6 +34,8 @@ function currentQuery() {
     p.set('business_type', $('f-type').value);
     p.set('contains', $('f-contains').value);
     p.set('not_contains', $('f-not-contains').value);
+    p.set('boost', $('f-boost').value);
+    p.set('penalty', $('f-penalty').value);
     p.set('min_price', $('f-min-price').value);
     p.set('max_price', $('f-max-price').value);
     p.set('min_cash_flow', $('f-min-cf').value);
@@ -147,7 +149,7 @@ function renderListings(listings, anchor) {
                     ${updated ? `<span class="updated">${updated}</span>` : ''}
                     <a href="#" class="hist-link" data-source="${esc(l.source)}" data-id="${esc(l.external_id)}">price history</a>
                 </div>
-                <div class="breakdown">Score parts → price ${b.price ?? '—'} · cash flow ${b.cash_flow ?? '—'} · proximity ${b.proximity ?? '—'}</div>
+                <div class="breakdown">Score parts → price ${b.price ?? '—'} · cash flow ${b.cash_flow ?? '—'} · proximity ${b.proximity ?? '—'}${b.keywords ? ` · keywords ${b.keywords > 0 ? '+' : ''}${b.keywords}` : ''}</div>
                 <div class="tags-row">
                     <input class="tags-input" type="text" placeholder="add tags (comma separated)…"
                         value="${esc(l.tags || '')}" data-source="${esc(l.source)}" data-id="${esc(l.external_id)}">
@@ -352,7 +354,7 @@ $('apply').addEventListener('click', loadResults);
 $('sort').addEventListener('change', loadResults);
 ['f-new-only', 'f-changed-only', 'f-starred-only'].forEach((id) => $(id).addEventListener('change', loadResults));
 $('reset').addEventListener('click', () => {
-    ['f-source', 'f-type', 'f-contains', 'f-not-contains', 'f-min-price', 'f-max-price', 'f-min-cf'].forEach((id) => $(id).value = '');
+    ['f-source', 'f-type', 'f-contains', 'f-not-contains', 'f-boost', 'f-penalty', 'f-min-price', 'f-max-price', 'f-min-cf'].forEach((id) => $(id).value = '');
     $('f-new-only').checked = false; $('f-changed-only').checked = false; $('f-starred-only').checked = false;
     $('w-price').value = 30; $('w-cf').value = 40; $('w-prox').value = 30;
     syncWeightLabels();

@@ -12,12 +12,24 @@ namespace CompanyFinder;
  * Normalization is min-max across the current result set, so the score is
  * relative to the listings being compared. Weights are configurable and are
  * normalized so they always sum to 1.
+ *
+ * After the weighted score, keyword adjustments are applied: each distinct
+ * "boost" keyword present in a listing adds points, each "penalty" keyword
+ * subtracts them (default ±10 per keyword).
  */
 class Scoring
 {
-    /** @param array<string,float> $weights */
-    public function __construct(private array $weights)
-    {
+    /**
+     * @param array<string,float>  $weights
+     * @param array<int,string>    $boostWords    keywords that add points when present
+     * @param array<int,string>    $penaltyWords  keywords that subtract points when present
+     */
+    public function __construct(
+        private array $weights,
+        private array $boostWords = [],
+        private array $penaltyWords = [],
+        private float $pointsPerKeyword = 10.0,
+    ) {
         $sum = array_sum($this->weights) ?: 1.0;
         foreach ($this->weights as $k => $v) {
             $this->weights[$k] = $v / $sum;
@@ -65,16 +77,57 @@ class Scoring
                 + $this->weights['cash_flow'] * $cashScore
                 + $this->weights['proximity'] * $proxScore;
 
-            $row['score'] = round($total * 100, 1);
+            $base = round($total * 100, 1);
+
+            // Keyword adjustments: ± points per distinct keyword present.
+            $adjust = $this->keywordAdjustment($row);
+
+            // Allow the boosted/penalized score past 0-100 so it meaningfully
+            // re-ranks, but never below 0.
+            $row['score'] = max(0.0, round($base + $adjust, 1));
             $row['score_breakdown'] = [
                 'price'     => round($priceScore * 100, 1),
                 'cash_flow' => round($cashScore * 100, 1),
                 'proximity' => round($proxScore * 100, 1),
+                'keywords'  => $adjust,
             ];
         }
         unset($row);
 
         return $rows;
+    }
+
+    /**
+     * Net keyword adjustment for one listing: + points for each present boost
+     * keyword, − points for each present penalty keyword.
+     *
+     * @param array<string,mixed> $row
+     */
+    private function keywordAdjustment(array $row): float
+    {
+        if (!$this->boostWords && !$this->penaltyWords) {
+            return 0.0;
+        }
+        $haystack = strtolower(implode(' ', [
+            $row['title'] ?? '',
+            $row['description'] ?? '',
+            $row['business_type'] ?? '',
+            $row['location'] ?? '',
+            $row['tags'] ?? '',
+        ]));
+
+        $adjust = 0.0;
+        foreach ($this->boostWords as $w) {
+            if ($w !== '' && str_contains($haystack, strtolower($w))) {
+                $adjust += $this->pointsPerKeyword;
+            }
+        }
+        foreach ($this->penaltyWords as $w) {
+            if ($w !== '' && str_contains($haystack, strtolower($w))) {
+                $adjust -= $this->pointsPerKeyword;
+            }
+        }
+        return $adjust;
     }
 
     /** @param array<int,array<string,mixed>> $rows @return array<int,float> */

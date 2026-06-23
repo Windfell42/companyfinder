@@ -71,9 +71,16 @@ foreach (['price', 'cash_flow', 'proximity'] as $w) {
     }
 }
 
+// Keyword score adjustments (+/- points per present keyword).
+$terms = static function (string $csv): array {
+    return array_values(array_filter(array_map('trim', explode(',', $csv)), fn($t) => $t !== ''));
+};
+$boostWords   = $terms($_GET['boost'] ?? '');
+$penaltyWords = $terms($_GET['penalty'] ?? '');
+
 $rows    = $repo->search($filters);
 $trends  = $repo->trends($rows);
-$scoring = new Scoring($weights);
+$scoring = new Scoring($weights, $boostWords, $penaltyWords);
 $rows    = $scoring->apply($rows);
 
 // Annotate each row with change-tracking info for the UI.

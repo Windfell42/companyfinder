@@ -61,6 +61,14 @@ $asset = fn(string $f) => $f . '?v=' . (@filemtime(__DIR__ . '/' . $f) ?: time()
             <input type="text" id="f-not-contains" placeholder="e.g. gas station, liquor">
         </label>
 
+        <label>Boost keywords <span class="hint">(+10 pts each if present)</span>
+            <input type="text" id="f-boost" placeholder="e.g. seller financing, absentee">
+        </label>
+
+        <label>Penalty keywords <span class="hint">(−10 pts each if present)</span>
+            <input type="text" id="f-penalty" placeholder="e.g. as-is, distressed">
+        </label>
+
         <div class="row">
             <label>Min price <input type="number" id="f-min-price" placeholder="0"></label>
             <label>Max price <input type="number" id="f-max-price" placeholder="any"></label>
