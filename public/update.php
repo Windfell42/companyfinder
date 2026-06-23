@@ -88,11 +88,12 @@ try {
     $daysNew   = (int) ($config['days_new'] ?? 7);
     $newCutoff = date('c', strtotime("-{$daysNew} days"));
 
-    // Walk up to the page count detected on the page, but never beyond the
-    // configured safety ceiling.
-    $cap       = (int) ($cfg['max_pages'] ?? 1);
-    $total     = $res['total_pages'] ?? null;
-    $effective = $total ? min($total, $cap) : $cap;
+    // The crawl bound is the configured safety ceiling, NOT the detected page
+    // count: some sites (e.g. BizQuest) only render a few page links, so
+    // detection under-counts. The client stops early on consecutive empty
+    // pages; total_pages is just for display.
+    $cap   = (int) ($cfg['max_pages'] ?? 1);
+    $total = $res['total_pages'] ?? null;
 
     echo json_encode([
         'source'      => $source,
@@ -102,7 +103,7 @@ try {
         'imported'    => $written,
         'ids'         => array_values(array_map(fn($l) => $l['external_id'], $listings)),
         'total_pages' => $total,
-        'max_pages'   => $effective,
+        'max_pages'   => $cap,
         'counts'      => $repo->counts($newCutoff),
         'log'         => $log,
     ]);

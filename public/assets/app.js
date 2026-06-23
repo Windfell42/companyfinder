@@ -251,11 +251,12 @@ $('update-now').addEventListener('click', async () => {
     outer:
     for (const src of sources) {
         const seen = new Set();
-        let maxPages = 40;
+        let maxPages = 40;     // crawl bound (safety ceiling)
+        let total = null;      // detected page count, for display only
         let consecutiveEmpty = 0;
 
         for (let page = 1; page <= maxPages; page++) {
-            status.textContent = `Updating ${SOURCE_LABELS[src] || src} — page ${page} of ${maxPages}…`;
+            status.textContent = `Updating ${SOURCE_LABELS[src] || src} — page ${page} of ${total || '?'}…`;
 
             // Fetch with a couple of retries for transient failures.
             let data = null;
@@ -279,6 +280,7 @@ $('update-now').addEventListener('click', async () => {
                 consecutiveEmpty++;                                    // transient: treat like an empty page
             } else {
                 maxPages = data.max_pages || maxPages;
+                if (data.total_pages) total = data.total_pages;
                 totalImported += data.imported || 0;
                 const ids = data.ids || [];
                 const fresh = ids.filter((id) => !seen.has(id));
