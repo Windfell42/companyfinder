@@ -29,6 +29,18 @@ $db   = new Database($config['db_path']);
 $repo = new ListingRepository($db->pdo(), $config['anchor']);
 
 $action = $_POST['action'] ?? '';
+
+if ($action === 'clean_region') {
+    $rf = $config['region_filter'] ?? [];
+    $removed = $repo->deleteOutOfRegion(
+        $config['anchor'],
+        (float) ($rf['max_radius_mi'] ?? 75),
+        $rf['state'] ?? 'TX'
+    );
+    echo json_encode(['cleaned' => 'region', 'removed' => $removed, 'counts' => $repo->counts()]);
+    exit;
+}
+
 if ($action !== 'clear') {
     http_response_code(400);
     echo json_encode(['error' => 'Unknown action']);

@@ -454,6 +454,35 @@ $('clear-btn').addEventListener('click', async () => {
     }
 });
 
+$('clean-region-btn').addEventListener('click', async () => {
+    if (!confirm('Remove imported listings that are out of region (other states, beyond the radius, or category links)? This cannot be undone.')) {
+        return;
+    }
+    const out = $('clean-region-result');
+    const btn = $('clean-region-btn');
+    btn.disabled = true;
+    out.className = 'import-result';
+    out.textContent = 'Cleaning…';
+    try {
+        const res = await apiFetch('admin.php', { method: 'POST', body: new URLSearchParams({ action: 'clean_region' }) });
+        const data = await res.json();
+        if (!res.ok || data.error) {
+            out.className = 'import-result err';
+            out.textContent = data.error || 'Cleanup failed.';
+            return;
+        }
+        out.className = 'import-result ok';
+        out.textContent = `Removed ${data.removed} out-of-region listing(s).`;
+        await loadMeta();
+        await loadResults();
+    } catch (err) {
+        out.className = 'import-result err';
+        out.textContent = 'Cleanup failed: ' + err.message;
+    } finally {
+        btn.disabled = false;
+    }
+});
+
 (async function init() {
     syncWeightLabels();
     await loadMeta();

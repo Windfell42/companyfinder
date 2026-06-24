@@ -411,4 +411,63 @@ class ListingRepository
         $this->pdo->exec('DELETE FROM listings');
         return $before;
     }
+
+    /**
+     * Remove already-stored live listings that are out of region: explicitly in
+     * another state, beyond the radius, or category/related-search links that
+     * were mistakenly imported. Sample rows are left alone. Returns the count
+     * removed.
+     *
+     * @param array{lat: float, lng: float} $anchor
+     */
+    public function deleteOutOfRegion(array $anchor, float $maxMi, string $state = 'TX'): int
+    {
+        $rows = $this->pdo->query('SELECT id, source, external_id, url, location, latitude, longitude FROM listings WHERE is_sample = 0')->fetchAll();
+
+        $kill = [];
+        foreach ($rows as $r) {
+            if ($this->isOutOfRegion($r, $anchor, $maxMi, $state)) {
+                $kill[] = $r;
+            }
+        }
+        if (!$kill) {
+            return 0;
+        }
+
+        $this->pdo->beginTransaction();
+        $delHist = $this->pdo->prepare('DELETE FROM listing_history WHERE source = :s AND external_id = :e');
+        $delRow  = $this->pdo->prepare('DELETE FROM listings WHERE id = :id');
+        foreach ($kill as $r) {
+            $delHist->execute([':s' => $r['source'], ':e' => $r['external_id']]);
+            $delRow->execute([':id' => $r['id']]);
+        }
+        $this->pdo->commit();
+
+        return count($kill);
+    }
+
+    /**
+     * @param array<string,mixed> $r
+     * @param array{lat: float, lng: float} $anchor
+     */
+    private function isOutOfRegion(array $r, array $anchor, float $maxMi, string $state): bool
+    {
+        // Category / related-search link mistakenly imported as a listing.
+        if (str_contains(strtolower((string) ($r['url'] ?? '')), 'businesses-for-sale-in-')) {
+            return true;
+        }
+        // Explicit out-of-state location (e.g. "Madison, WI").
+        $loc = (string) ($r['location'] ?? '');
+        if (preg_match('/,\s*([A-Za-z]{2})\b\s*$/', $loc, $m) && strtoupper($m[1]) !== strtoupper($state)) {
+            return true;
+        }
+        // Known coordinates beyond the radius.
+        if (($r['latitude'] ?? null) !== null && ($r['longitude'] ?? null) !== null) {
+            $d = Geo::milesBetween((float) $r['latitude'], (float) $r['longitude'], $anchor['lat'], $anchor['lng']);
+            if ($d > $maxMi) {
+                return true;
+            }
+        }
+        return false;
+    }
 }
