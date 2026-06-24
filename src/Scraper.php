@@ -577,6 +577,14 @@ class Scraper
             if ($href === '') {
                 continue;
             }
+            // Skip category / related-search links such as
+            // "/businesses-for-sale-in-dane-county-wi/": they match the
+            // location-category shape and lack a numeric listing id. Real
+            // detail pages carry an id (e.g. .../2496442/), so they're kept.
+            $lc = strtolower($href);
+            if (str_contains($lc, 'businesses-for-sale-in-') && !preg_match('/\d{5,}/', $href)) {
+                continue;
+            }
             // One card has several links (image, title, "details"); emit each
             // listing id once.
             $id = $this->idFromUrl($this->absoluteUrl($href, $base));
