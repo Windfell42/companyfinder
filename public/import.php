@@ -85,7 +85,7 @@ if (!$docs) {
 
 $db      = new Database($config['db_path']);
 $repo    = new ListingRepository($db->pdo(), $config['anchor']);
-$scraper = new Scraper($config['http'], $config['exclude_keywords']);
+$scraper = new Scraper($config['http'], $config['exclude_keywords'], null, $config['exclude_exceptions'] ?? []);
 
 $results = [];
 $totalImported = 0;
@@ -94,7 +94,7 @@ foreach ($docs as $label => $html) {
     $kept     = $scraper->removeExcluded($parsed);
     $rf = $config['region_filter'] ?? [];
     if (!empty($rf['enabled'])) {
-        $kept = $scraper->filterRegion($kept, $config['anchor'], (float) ($rf['max_radius_mi'] ?? 75), $rf['state'] ?? 'TX');
+        $kept = $scraper->filterRegion($kept, $config['anchor'], (float) ($rf['max_radius_mi'] ?? 75), $rf['state'] ?? 'TX', $rf['exclude_location_keywords'] ?? [], $config['exclude_exceptions']['franchise'] ?? []);
     }
     $written  = $repo->upsertMany($kept);
     $totalImported += $written;

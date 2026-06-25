@@ -24,10 +24,17 @@ class Scraper
      * @param array<string,mixed> $httpConfig
      * @param string[]            $excludeKeywords
      */
+    /**
+     * @param array<string,mixed>            $httpConfig
+     * @param array<int,string>              $excludeKeywords
+     * @param callable|null                  $logger
+     * @param array<string,array<int,string>> $excludeExceptions  keyword => exempting substrings
+     */
     public function __construct(
         private array $httpConfig,
         private array $excludeKeywords,
         private $logger = null,
+        private array $excludeExceptions = [],
     ) {}
 
     /**
@@ -795,12 +802,27 @@ class Scraper
      *
      * @param array<int,array<string,mixed>> $listings
      * @param array{lat: float, lng: float} $anchor
+     * @param array<int,string> $excludeLocationKeywords  location substrings that mark a franchise/multi-location listing
+     * @param array<int,string> $keepKeywords  substrings that exempt a listing from the location rule (e.g. "property management")
      * @return array<int,array<string,mixed>>
      */
-    public function filterRegion(array $listings, array $anchor, float $maxMi, string $state = 'TX'): array
+    public function filterRegion(array $listings, array $anchor, float $maxMi, string $state = 'TX', array $excludeLocationKeywords = [], array $keepKeywords = []): array
     {
-        return array_values(array_filter($listings, function ($l) use ($anchor, $maxMi, $state) {
+        return array_values(array_filter($listings, function ($l) use ($anchor, $maxMi, $state, $excludeLocationKeywords, $keepKeywords) {
             $loc = (string) ($l['location'] ?? '');
+
+            // Reject franchise / multi-location coverage areas
+            // (e.g. "Available Nationwide", "Available in Texas") — unless the
+            // listing is exempt (e.g. a property-management company).
+            $locLower = strtolower($loc);
+            $text = strtolower(($l['title'] ?? '') . ' ' . ($l['business_type'] ?? '') . ' ' . ($l['description'] ?? '') . ' ' . $loc);
+            if (!$this->matchesAny($text, $keepKeywords)) {
+                foreach ($excludeLocationKeywords as $kw) {
+                    if ($kw !== '' && str_contains($locLower, strtolower($kw))) {
+                        return false;
+                    }
+                }
+            }
 
             // Reject an explicit out-of-state location (e.g. "Atlanta, GA").
             if (preg_match('/,\s*([A-Za-z]{2})\b\s*$/', $loc, $m)
@@ -821,12 +843,35 @@ class Scraper
         }));
     }
 
+    /** @param array<int,string> $needles */
+    private function matchesAny(string $haystackLower, array $needles): bool
+    {
+        foreach ($needles as $n) {
+            if ($n !== '' && str_contains($haystackLower, strtolower($n))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** @param array<string,mixed> $listing */
     private function isExcluded(array $listing): bool
     {
-        $haystack = strtolower(($listing['title'] ?? '') . ' ' . ($listing['description'] ?? '') . ' ' . ($listing['business_type'] ?? ''));
+        $haystack = strtolower(($listing['title'] ?? '') . ' ' . ($listing['description'] ?? '') . ' ' . ($listing['business_type'] ?? '') . ' ' . ($listing['location'] ?? ''));
         foreach ($this->excludeKeywords as $word) {
-            if (str_contains($haystack, strtolower($word))) {
+            if (!str_contains($haystack, strtolower($word))) {
+                continue;
+            }
+            // A listing matching an exception substring for this keyword is kept
+            // (e.g. property-management franchises survive the franchise rule).
+            $exempt = false;
+            foreach ($this->excludeExceptions[$word] ?? [] as $ex) {
+                if ($ex !== '' && str_contains($haystack, strtolower($ex))) {
+                    $exempt = true;
+                    break;
+                }
+            }
+            if (!$exempt) {
                 return true;
             }
         }

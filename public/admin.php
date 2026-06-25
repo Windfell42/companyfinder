@@ -35,7 +35,9 @@ if ($action === 'clean_region') {
     $removed = $repo->deleteOutOfRegion(
         $config['anchor'],
         (float) ($rf['max_radius_mi'] ?? 75),
-        $rf['state'] ?? 'TX'
+        $rf['state'] ?? 'TX',
+        $rf['exclude_location_keywords'] ?? [],
+        $config['exclude_exceptions']['franchise'] ?? []
     );
     echo json_encode(['cleaned' => 'region', 'removed' => $removed, 'counts' => $repo->counts()]);
     exit;

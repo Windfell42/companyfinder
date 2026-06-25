@@ -69,7 +69,7 @@ if (!$files) {
 
 $db   = new Database($config['db_path']);
 $repo = new ListingRepository($db->pdo(), $config['anchor']);
-$scraper = new Scraper($config['http'], $config['exclude_keywords']);
+$scraper = new Scraper($config['http'], $config['exclude_keywords'], null, $config['exclude_exceptions'] ?? []);
 
 $total = 0;
 foreach ($files as $file) {

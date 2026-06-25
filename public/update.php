@@ -70,7 +70,7 @@ try {
 
     $db   = new Database($config['db_path']);
     $repo = new ListingRepository($db->pdo(), $config['anchor']);
-    $scraper = new Scraper($http, $config['exclude_keywords'], $logger);
+    $scraper = new Scraper($http, $config['exclude_keywords'], $logger, $config['exclude_exceptions'] ?? []);
 
     $logger("=== {$cfg['label']} · page {$page} ===");
     $res = $scraper->fetchPageListings($source, $cfg, $page);
@@ -79,7 +79,7 @@ try {
     $rf = $config['region_filter'] ?? [];
     if (!empty($rf['enabled'])) {
         $before = count($listings);
-        $listings = $scraper->filterRegion($listings, $config['anchor'], (float) ($rf['max_radius_mi'] ?? 75), $rf['state'] ?? 'TX');
+        $listings = $scraper->filterRegion($listings, $config['anchor'], (float) ($rf['max_radius_mi'] ?? 75), $rf['state'] ?? 'TX', $rf['exclude_location_keywords'] ?? [], $config['exclude_exceptions']['franchise'] ?? []);
         $logger(sprintf('  region filter: kept %d of %d', count($listings), $before));
     }
 

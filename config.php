@@ -22,6 +22,13 @@ $config = [
     // listing to be dropped entirely (case-insensitive, whole-ish match).
     'exclude_keywords' => ['restaurant', 'franchise'],
 
+    // Exceptions to the exclusion rules: map an exclude keyword to substrings
+    // that exempt a listing from that rule. Here, property-management listings
+    // are kept even if they are franchises.
+    'exclude_exceptions' => [
+        'franchise' => ['property management'],
+    ],
+
     // The anchor location for the proximity component of the score.
     'anchor' => [
         'label' => 'Plano, Texas',
@@ -67,6 +74,10 @@ $config = [
         'enabled'       => true,
         'max_radius_mi' => 75,
         'state'         => 'TX',
+        // Location substrings that mark a franchise / multi-location listing
+        // (a coverage area rather than a specific business location). Matched
+        // case-insensitively; any hit drops the listing.
+        'exclude_location_keywords' => ['nationwide', 'available in'],
     ],
 
     // Polite scraping defaults.

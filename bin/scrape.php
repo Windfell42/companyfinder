@@ -52,14 +52,14 @@ if (isset($opts['brightdata'])) {
 }
 
 $logger = fn(string $m) => fwrite(STDOUT, $m . "\n");
-$scraper = new Scraper($http, $config['exclude_keywords'], $logger);
+$scraper = new Scraper($http, $config['exclude_keywords'], $logger, $config['exclude_exceptions'] ?? []);
 
 $listings = $scraper->scrape($sources);
 
 $rf = $config['region_filter'] ?? [];
 if (!empty($rf['enabled'])) {
     $before = count($listings);
-    $listings = $scraper->filterRegion($listings, $config['anchor'], (float) ($rf['max_radius_mi'] ?? 75), $rf['state'] ?? 'TX');
+    $listings = $scraper->filterRegion($listings, $config['anchor'], (float) ($rf['max_radius_mi'] ?? 75), $rf['state'] ?? 'TX', $rf['exclude_location_keywords'] ?? [], $config['exclude_exceptions']['franchise'] ?? []);
     fwrite(STDOUT, sprintf("Region filter: kept %d of %d\n", count($listings), $before));
 }
 

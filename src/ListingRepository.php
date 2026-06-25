@@ -419,14 +419,16 @@ class ListingRepository
      * removed.
      *
      * @param array{lat: float, lng: float} $anchor
+     * @param array<int,string> $excludeLocationKeywords
+     * @param array<int,string> $keepKeywords  substrings that exempt a listing (e.g. "property management")
      */
-    public function deleteOutOfRegion(array $anchor, float $maxMi, string $state = 'TX'): int
+    public function deleteOutOfRegion(array $anchor, float $maxMi, string $state = 'TX', array $excludeLocationKeywords = [], array $keepKeywords = []): int
     {
-        $rows = $this->pdo->query('SELECT id, source, external_id, url, location, latitude, longitude FROM listings WHERE is_sample = 0')->fetchAll();
+        $rows = $this->pdo->query('SELECT id, source, external_id, url, title, business_type, location, latitude, longitude FROM listings WHERE is_sample = 0')->fetchAll();
 
         $kill = [];
         foreach ($rows as $r) {
-            if ($this->isOutOfRegion($r, $anchor, $maxMi, $state)) {
+            if ($this->isOutOfRegion($r, $anchor, $maxMi, $state, $excludeLocationKeywords, $keepKeywords)) {
                 $kill[] = $r;
             }
         }
@@ -449,15 +451,38 @@ class ListingRepository
     /**
      * @param array<string,mixed> $r
      * @param array{lat: float, lng: float} $anchor
+     * @param array<int,string> $excludeLocationKeywords
+     * @param array<int,string> $keepKeywords
      */
-    private function isOutOfRegion(array $r, array $anchor, float $maxMi, string $state): bool
+    private function isOutOfRegion(array $r, array $anchor, float $maxMi, string $state, array $excludeLocationKeywords = [], array $keepKeywords = []): bool
     {
         // Category / related-search link mistakenly imported as a listing.
         if (str_contains(strtolower((string) ($r['url'] ?? '')), 'businesses-for-sale-in-')) {
             return true;
         }
-        // Explicit out-of-state location (e.g. "Madison, WI").
         $loc = (string) ($r['location'] ?? '');
+
+        // Exempt listings (e.g. property-management companies) from the
+        // franchise/coverage-area location rule.
+        $text = strtolower(($r['title'] ?? '') . ' ' . ($r['business_type'] ?? '') . ' ' . $loc);
+        $exempt = false;
+        foreach ($keepKeywords as $kw) {
+            if ($kw !== '' && str_contains($text, strtolower($kw))) {
+                $exempt = true;
+                break;
+            }
+        }
+
+        // Franchise / multi-location coverage area (e.g. "Available Nationwide").
+        $locLower = strtolower($loc);
+        if (!$exempt) {
+            foreach ($excludeLocationKeywords as $kw) {
+                if ($kw !== '' && str_contains($locLower, strtolower($kw))) {
+                    return true;
+                }
+            }
+        }
+        // Explicit out-of-state location (e.g. "Madison, WI").
         if (preg_match('/,\s*([A-Za-z]{2})\b\s*$/', $loc, $m) && strtoupper($m[1]) !== strtoupper($state)) {
             return true;
         }
