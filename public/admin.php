@@ -43,6 +43,14 @@ if ($action === 'clean_region') {
     exit;
 }
 
+if ($action === 'clean_stale') {
+    $days   = (int) ($config['stale_days'] ?? 7);
+    $cutoff = date('c', strtotime("-{$days} days"));
+    $removed = $repo->deleteStale($cutoff);
+    echo json_encode(['cleaned' => 'stale', 'days' => $days, 'removed' => $removed, 'counts' => $repo->counts()]);
+    exit;
+}
+
 if ($action !== 'clear') {
     http_response_code(400);
     echo json_encode(['error' => 'Unknown action']);

@@ -18,6 +18,11 @@ $config = [
     // A listing is flagged NEW if it was first seen within this many days.
     'days_new' => 7,
 
+    // Listings not seen (updated) by an import within this many days are
+    // considered stale (likely sold / delisted) and can be removed from the
+    // dashboard's clean-up controls.
+    'stale_days' => 7,
+
     // Words that, if present in a listing title or description, cause the
     // listing to be dropped entirely (case-insensitive, whole-ish match).
     'exclude_keywords' => ['restaurant', 'franchise'],

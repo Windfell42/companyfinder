@@ -131,8 +131,10 @@ $asset = fn(string $f) => $f . '?v=' . (@filemtime(__DIR__ . '/' . $f) ?: time()
                     <h4>Clean up</h4>
                     <div class="row">
                         <button type="button" id="clean-region-btn" class="danger">Remove out-of-region listings</button>
+                        <button type="button" id="clean-stale-btn" class="danger">Remove stale listings (7+ days)</button>
                     </div>
                     <div id="clean-region-result" class="import-result"></div>
+                    <div id="clean-stale-result" class="import-result"></div>
 
                     <h4>Clear database</h4>
                     <div class="row">

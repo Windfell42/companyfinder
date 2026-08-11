@@ -413,6 +413,34 @@ class ListingRepository
     }
 
     /**
+     * Delete live listings whose last_seen (last updated) is older than the
+     * cutoff — i.e. stale/delisted. Sample rows are left alone; history for
+     * removed rows is pruned. Returns the count removed.
+     *
+     * @param string $cutoff ISO timestamp; rows last seen before it are removed
+     */
+    public function deleteStale(string $cutoff): int
+    {
+        $sel = $this->pdo->prepare('SELECT source, external_id FROM listings WHERE is_sample = 0 AND last_seen IS NOT NULL AND last_seen < :cut');
+        $sel->execute([':cut' => $cutoff]);
+        $rows = $sel->fetchAll();
+        if (!$rows) {
+            return 0;
+        }
+
+        $this->pdo->beginTransaction();
+        $delHist = $this->pdo->prepare('DELETE FROM listing_history WHERE source = :s AND external_id = :e');
+        foreach ($rows as $r) {
+            $delHist->execute([':s' => $r['source'], ':e' => $r['external_id']]);
+        }
+        $del = $this->pdo->prepare('DELETE FROM listings WHERE is_sample = 0 AND last_seen IS NOT NULL AND last_seen < :cut');
+        $del->execute([':cut' => $cutoff]);
+        $this->pdo->commit();
+
+        return $del->rowCount();
+    }
+
+    /**
      * Remove already-stored live listings that are out of region: explicitly in
      * another state, beyond the radius, or category/related-search links that
      * were mistakenly imported. Sample rows are left alone. Returns the count
